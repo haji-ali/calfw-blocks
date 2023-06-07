@@ -1237,7 +1237,8 @@ is added at the beginning of a block to indicate it is the beginning."
         (is-beginning-of-cell (= (car block-horizontal-pos) 0))
         (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
         (rendered-block '())
-        (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string)))
+         (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string))
+         (source-clr (cfw:source-color (get-text-property 0 'cfw:source block-string))))
     (dolist (i (number-sequence 0 (- block-height 1)))
       (push (list (+ (car block-vertical-pos) i)
                   (propertize (concat ;;TODO some parts of the string won't inherit the properties of the event
@@ -1253,9 +1254,17 @@ is added at the beginning of a block to indicate it is the beginning."
                                )
                               'face
                               (seq-filter (lambda (x) x)
-                               (list face (if is-exceeded-indicator 'italic)
-                                     (if (= i 0) 'calfw-blocks-overline)
-                                     ))
+                                          (list
+                                           ;; (calendar-make-temp-face
+                                           ;;  (list :background source-clr
+                                           ;;        :foreground "black"))
+                                           ;; (ansi-color-make-face
+                                           ;;  :background source-clr)
+                                           (cons 'background-color source-clr)
+                                           (cons 'foreground-color
+                                                 (calfw-blocks-foreground source-clr))
+                                           (if is-exceeded-indicator 'italic)
+                                           (if (= i 0) 'calfw-blocks-overline)))
                               'calfw-blocks-horizontal-pos block-horizontal-pos))
             rendered-block))
     (reverse rendered-block)))
