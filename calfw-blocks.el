@@ -176,7 +176,7 @@ VIEW is a symbol of the view type."
      `((eol . ,EOL) (vl . ,(cfw:rt (make-string 1 cfw:fchar-vertical-line) 'cfw:face-grid))
        (hline . ,(cfw:rt
                   (concat
-                   (loop for i from 0 below 2 concat
+                   (cl-loop for i from 0 below 2 concat
                          (concat
                           (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
                           (make-string num-date-cell-char cfw:fchar-horizontal-line)
@@ -187,7 +187,7 @@ VIEW is a symbol of the view type."
                   'cfw:face-grid))
        (cline . ,(cfw:rt
                   (concat
-                   (loop for i from 0 below 2 concat
+                   (cl-loop for i from 0 below 2 concat
                          (concat
                           (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
                           (make-string num-date-cell-char cfw:fchar-horizontal-line)
@@ -270,7 +270,7 @@ return an alist of rendering parameters."
                                              days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
   (calfw-blocks-render-columns-transpose
-   (loop with cell-width      = (cfw:k 'cell-width param)
+   (cl-loop with cell-width      = (cfw:k 'cell-width param)
          with days            = (or days (cfw:k 'days model))
          with content-fun     = (or content-fun
                                     'cfw:render-event-days-overview-content)
@@ -317,7 +317,7 @@ return an alist of rendering parameters."
   (when periods-stack
     (let ((stack (sort (copy-sequence periods-stack)
                        (lambda (a b) (< (car a) (car b))))))
-      (loop for (row (begin end content props interval)) in stack
+      (cl-loop for (row (begin end content props interval)) in stack
             for beginp = (equal date begin)
             for endp = (equal date end)
             for width = (- cell-width 2)
@@ -348,19 +348,19 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
          (num-days (length day-columns))
          (first-half (seq-subseq day-columns 0 (/ num-days 2)))
          (second-half (seq-subseq day-columns (/ num-days 2) num-days)))
-    (loop for j from 0 below (/ num-days 2)
+    (cl-loop for j from 0 below (/ num-days 2)
           for day1 = (nth j first-half)
           for day2 = (nth j second-half)
           do
-          (loop with breaked-day-columns =
-                (loop for day-rows in `(,day1 ,day2)
+          (cl-loop with breaked-day-columns =
+                (cl-loop for day-rows in `(,day1 ,day2)
                       for date = (car day-rows)
                       for line = (cddr day-rows)
                       collect
                       (cons date (cfw:render-break-lines
                                   line cell-width cell-height)))
                 with breaked-date-columns =
-                (loop for day-rows in `(,day1 ,day2)
+                (cl-loop for day-rows in `(,day1 ,day2)
                       for date = (car day-rows)
                       for dayname = (aref calendar-day-name-array
                                           (calendar-day-of-week date))
@@ -384,7 +384,7 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
                                        (length (cdr (nth 1 breaked-date-columns))))
                 for i from 1 to max-height
                 do
-                (loop for k from 0 to 1
+                (cl-loop for k from 0 to 1
                       for day-rows = (nth k breaked-day-columns)
                       for date-rows = (nth k breaked-date-columns)
                       for date = (car day-rows)
