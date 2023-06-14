@@ -975,15 +975,18 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                 collect
                 (cons date (calfw-blocks-render-event-blocks
                             lines cell-width (1- cell-height))))
-
+             with curr-time-linum = (calfw-blocks--current-time-vertical-position)
           with time-columns = (calfw-blocks-time-column time-width cell-height)
-          for i from 1 below cell-height do
-          (insert (cfw:render-left time-width (nth (1- i) time-columns)))
+             for i from 1 below cell-height
+             for final-line = (apply #'concat
+                                     (append
+                                      (list
+                                       (cfw:render-left time-width (nth (1- i) time-columns)))
           (cl-loop for day-rows in breaked-day-columns
                 for date = (car day-rows)
                 for row = (nth i day-rows)
-                do
-                (insert
+                                               collect
+                                               (concat
                  (if (and calfw-blocks-show-time-grid
                           calfw-blocks-time-grid-lines-on-top
                           (= (mod (1- i) calfw-blocks-lines-per-hour) 0)
@@ -995,7 +998,14 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                   (cfw:render-separator
                    (cfw:render-left cell-width (and row (format "%s" row))))
                   'cfw:date date)))
-          (insert VL EOL))
+                                      (list VL EOL)))
+             do
+             (when (and calfw-blocks-show-current-time-indicator
+                        (= (1- i) curr-time-linum))
+               (add-face-text-property
+                0 (length final-line) 'calfw-blocks-today-indicator
+                t final-line))
+             (insert final-line))
     (insert cline)))
 
 (defun calfw-blocks-pad-whitespace (columns)
@@ -1269,6 +1279,10 @@ is added at the beginning of a block to indicate it is the beginning."
             rendered-block))
     (reverse rendered-block)))
 
+(defun calfw-blocks-foreground (bg-color)
+  "Return a foreground text color given a background BG-COLOR."
+  (color-complement bg-color))
+
 (defun calfw-blocks-zip-with-faces (blocks)
   (let ((blocks-with-faces '()))
     (dotimes (i (length blocks))
@@ -1311,13 +1325,7 @@ is added at the beginning of a block to indicate it is the beginning."
             (push (cadr (pop split-blocks)) current-line-lst))
           (setq current-line-lst (calfw-blocks--pad-block-line
                                   current-line-lst cell-width make-time-grid-line)))
-        (push (string-join (if (and calfw-blocks-show-current-time-indicator
-                                    (= i curr-time-grid-line))
-                               (mapcar (lambda (x) (calfw-blocks-superimpose-face
-                                                    x 'calfw-blocks-today-indicator))
-                                       current-line-lst)
-                             current-line-lst)
-                           "")
+        (push (apply 'concat current-line-lst)
               rendered-lines)))
     (reverse rendered-lines)))
 
