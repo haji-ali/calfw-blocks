@@ -993,7 +993,14 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                           (string= row (make-string cell-width ?-))
                           (not (eq date earliest-date)))
                      ?-
-                   VL)
+                                                  (if (and
+                                                       calfw-blocks-show-current-time-indicator
+                                                       (= (1- i) curr-time-linum)
+                                                       (equal date (calendar-current-date)))
+                                                      (propertize "@"
+                                                                  'face
+                                                                  '(:foreground "red"))
+                                                    VL))
                  (cfw:tp
                   (cfw:render-separator
                    (cfw:render-left cell-width (and row (format "%s" row))))
@@ -1226,6 +1233,85 @@ events are not displayed is shown."
                                       (make-string (- (- end start) (- (length s) start)) ? )))
         (t (make-string (- end start) ? ))))
 
+
+(defun calfw-blocks--wrap-text (width &optional word-break)
+  (goto-char (point-min))
+  (while (< (point) (point-max))
+    (let* ((forward-by (min width (- (point-max) (point))))
+           (counter forward-by)
+           (word-break (or word-break "-"))
+           prev-point
+           is-whitespace
+           whitespaces '(?\s ?\t ?\n)
+           c)
+      (forward-char forward-by)
+      (setq prev-point (point))
+      (unless (eobp)
+        (if (or (null (setq c (char-after)))
+                (member c whitespaces))
+            (progn (when c
+                     (forward-char))
+                   (setq is-whitespace t))
+          (while (not (or (= (setq counter (1- counter)) 0)
+                          (null (setq c (char-before)))
+                          (setq is-whitespace
+                                (member c whitespaces))))
+            (backward-char)))
+        ;; If not whitespace, but the character immediately after is then just
+        ;; advance
+        (when (and is-whitespace
+                   (> (- prev-point (point)) 1))
+          ;; Find if next space is within width
+          ;; Otherwise, might as well hard-break at this
+          ;; point
+          (let* ((pt (point))
+                 (forward-by (min width (- (point-max) (point))))
+                 (counter forward-by)
+                 is-white)
+            (forward-char)
+            (while (not (or (= (setq counter (1- counter)) 0)
+                            (null (setq c (char-before)))
+                            (setq is-white
+                                  (member c whitespaces))))
+              (forward-char))
+            (if (or (eobp) is-white)
+                (goto-char pt) ;; It's fine to break there
+              ;; Just break the word
+              (goto-char (1- prev-point))
+              (setq is-whitespace nil))))
+        ;;
+        (if is-whitespace
+            (delete-char -1)
+          ;; hard break
+          (goto-char (1- prev-point))
+          (insert word-break))
+        (insert ?\n)))))
+
+(defun calfw-blocks--wrap-string (text width &optional word-break)
+  "Wrap TEXT to a fixed WIDTH without breaking words."
+  ;; Doesn't work with \n in text
+  (with-temp-buffer
+    (insert text)
+    (wrap-text width word-break)
+    (buffer-string)))
+
+(defun calfw-blocks--to-lines (text max-lines)
+  "Wrap TEXT to a fixed WIDTH without breaking words."
+  ;; Doesn't work with \n in text
+  (let ((lines (string-split text "\n"))
+        last-line ellips)
+    (when (> (length lines) max-lines)
+      (setq ellips (truncate-string-ellipsis)
+            last-line (nth max-lines lines))
+      (setf (nth max-lines lines)
+            (concat
+             (substring
+              last-line
+              0
+              (- (length last-line) (length ellips)))
+             ellips)))
+    lines))
+
 (defun calfw-blocks-split-single-block (block cell-width face)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
@@ -1246,6 +1332,10 @@ is added at the beginning of a block to indicate it is the beginning."
         (end-of-cell (= (cadr block-horizontal-pos) cell-width))
         (is-beginning-of-cell (= (car block-horizontal-pos) 0))
         (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
+         (block-lines (calfw-blocks--to-lines
+                       (calfw-blocks--wrap-string block-string
+                                                  block-width-adjusted)
+                       (- block-height 1)))
         (rendered-block '())
          (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string))
          (source-clr (cfw:source-color (get-text-property 0 'cfw:source block-string))))
@@ -1255,8 +1345,10 @@ is added at the beginning of a block to indicate it is the beginning."
                                ;; might cause issues with org goto/navigation/etc?
                                (when (not is-beginning-of-cell) "|" );;(if (= i 0) "*" "|"))
                                ;; (if (= i 0) ">")
-                               (calfw-blocks-generalized-substring block-string (* i block-width-adjusted)
-                                                                   (* (1+ i) block-width-adjusted))
+                               ;; (calfw-blocks-generalized-substring block-string (* i block-width-adjusted)
+                               ;;                                     (* (1+ i) block-width-adjusted))
+                               (calfw-blocks-generalized-substring
+                                (car block-lines) 0 block-width-adjusted)
                                                                    ;; (- (* (1+ i) block-width-adjusted)
                                                                    ;;    (if (= i 0) 1 0)))
                                ;; (when (not end-of-cell) "|")
@@ -1270,18 +1362,28 @@ is added at the beginning of a block to indicate it is the beginning."
                                            ;;        :foreground "black"))
                                            ;; (ansi-color-make-face
                                            ;;  :background source-clr)
-                                           (cons 'background-color source-clr)
-                                           (cons 'foreground-color
-                                                 (calfw-blocks-foreground source-clr))
+                                           (cons 'background-color
+                                                 (calfw-blocks--composite-color
+                                                  source-clr
+                                                  0.2
+                                                  (face-background 'default)))
+                                           (cons 'foreground-color source-clr)
                                            (if is-exceeded-indicator 'italic)
                                            (if (= i 0) 'calfw-blocks-overline)))
                               'calfw-blocks-horizontal-pos block-horizontal-pos))
-            rendered-block))
+            rendered-block)
+      (setq block-lines (cdr block-lines)))
     (reverse rendered-block)))
 
-(defun calfw-blocks-foreground (bg-color)
-  "Return a foreground text color given a background BG-COLOR."
-  (color-complement bg-color))
+(defun calfw-blocks--composite-color (color1 transparency color2)
+  "Composite COLOR with TRANSPARENCY over COLOR2."
+  (let* ((color-rgb (color-name-to-rgb color1))
+         (background-rgb (color-name-to-rgb color2))
+         (result-rgb (cl-mapcar
+                      (lambda (c bg) (+ (* transparency c)
+                                        (* (- 1 transparency) bg)))
+                      color-rgb background-rgb)))
+    (apply 'color-rgb-to-hex (append result-rgb '(2)))))
 
 (defun calfw-blocks-zip-with-faces (blocks)
   (let ((blocks-with-faces '()))
@@ -1407,14 +1509,16 @@ is added at the beginning of a block to indicate it is the beginning."
 
 (cl-defun calfw-blocks-scroll-to-initial-visible-time (&key date buffer custom-map contents-sources annotation-sources view sorter)
   (when (string-match-p "block" (symbol-name view))
-    (scroll-up-line (floor (* calfw-blocks-lines-per-hour
+    (scroll-up (floor (* calfw-blocks-lines-per-hour
                        (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))
 
 (cl-defun calfw-blocks-scroll-to-initial-visible-time-after-update (component)
-  (let ((view (cfw:component-view component)))
+  (let ((buf (cfw:cp-get-buffer component))
+        (view (cfw:component-view component)))
     (when (string-match-p "block" (symbol-name view))
-      (scroll-up-line (floor (* calfw-blocks-lines-per-hour
-                                (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time)))))))
+      (with-current-buffer-window buf
+        (scroll-up (floor (* calfw-blocks-lines-per-hour
+                             (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
 (advice-add 'cfw:open-calendar-buffer :after 'calfw-blocks-scroll-to-initial-visible-time)
 (advice-add 'cfw:cp-update :after 'calfw-blocks-scroll-to-initial-visible-time-after-update)
