@@ -546,15 +546,20 @@ return an alist of rendering parameters."
                                                  concat
            (concat VL (cfw:render-center
                        cell-width
+                       (concat
+                        (when (equal (calendar-current-date) date)
+                          (cfw:rt
+                           "@"
+                           'cfw:face-today-title))
                        (cfw:rt
                         (format "%s (%s%d)"
-                                (calendar-day-name date)
+                                 (calendar-day-name date t)
                                 (if (= (calendar-extract-month date)
                                        (calendar-extract-month begin-date))
                                     ""
                                   (format "%d/" (calendar-extract-month date)))
                                 (calendar-extract-day date))
-                        (cfw:render-get-week-face i 'cfw:face-header))))
+                         (cfw:render-get-week-face i 'cfw:face-header)))))
            do
            (setq date  (cfw:date-after date 1))))
 
@@ -860,7 +865,11 @@ b is the minute."
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
                           props)))))
-          (seq-sort (lambda (a b) (< (car a) (car b)))
+          (seq-sort
+           (lambda (a b) (< (car a) (car b)))
+           ;; (lambda (a b)
+           ;;   (calendar-date-compare (list (nth 0 (cadr a)))
+           ;;                          (list (nth 0 (cadr b)))))
                     periods-stack)))
 
 (defun calfw-blocks-render-periods-title (date week-day begin end content cell-width model)
