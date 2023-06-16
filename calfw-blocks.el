@@ -993,7 +993,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                        (equal date (calendar-current-date)))
                                                       (propertize "@"
                                                                   'face
-                                                                  '(:foreground "red"))
+                                                                  'cfw:face-today-title)
                                                     VL))
                  (cfw:tp
                   (cfw:render-separator
@@ -1359,7 +1359,7 @@ is added at the beginning of a block to indicate it is the beginning."
                                            (cons 'background-color
                                                  (calfw-blocks--composite-color
                                                   source-clr
-                                                  0.2
+                                                  0.5
                                                   (face-background 'default)))
                                            (cons 'foreground-color source-clr)
                                            (if is-exceeded-indicator 'italic)
