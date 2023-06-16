@@ -539,14 +539,30 @@ return an alist of rendering parameters."
     ;; update model
     (setf (cfw:component-model component) model)
     (setq day-of-week-names
-                                           (cl-loop for i in (cfw:k 'headers model)
+          (cl-loop
+           with date = begin-date
+           for i in (cfw:k 'headers model)
                                                  with VL = (cfw:k 'vl param) with cell-width = (cfw:k 'cell-width param)
-                                                 for name = (aref calendar-day-name-array i)
                                                  concat
-                                                 (concat VL (cfw:rt (cfw:render-center cell-width name)
-                                      (cfw:render-get-week-face i 'cfw:face-header)))))
+           (concat VL (cfw:render-center
+                       cell-width
+                       (cfw:rt
+                        (format "%s (%s%d)"
+                                (calendar-day-name date)
+                                (if (= (calendar-extract-month date)
+                                       (calendar-extract-month begin-date))
+                                    ""
+                                  (format "%d/" (calendar-extract-month date)))
+                                (calendar-extract-day date))
+                        (cfw:render-get-week-face i 'cfw:face-header))))
+           do
+           (setq date  (cfw:date-after date 1))))
+
     (setq calfw-blocks-header-line-string
-          (concat "  Time" day-of-week-names))
+          (concat "  "
+                  (calendar-month-name (calendar-extract-month begin-date) t)
+                  " "
+                  day-of-week-names))
     (setq header-line-format '((:eval
                                 (if (< (line-number-at-pos (window-start)) 6)
                                     ""
