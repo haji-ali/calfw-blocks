@@ -1322,6 +1322,13 @@ events are not displayed is shown."
              ellips)))
     lines))
 
+(defun calfw-blocks--remove-unicode-chars (str)
+  "Remove any Unicode characters from INPUT-STRING."
+  (cl-loop
+   for char across str
+   if (and (>= char 16) (<= char 127))
+   concat (string char)))
+
 (defun calfw-blocks-split-single-block (block cell-width face)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
@@ -1343,7 +1350,8 @@ is added at the beginning of a block to indicate it is the beginning."
         (is-beginning-of-cell (= (car block-horizontal-pos) 0))
         (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
          (block-lines (calfw-blocks--to-lines
-                       (calfw-blocks--wrap-string block-string
+                       (calfw-blocks--wrap-string (calfw-blocks--remove-unicode-chars
+                                                   block-string)
                                                   block-width-adjusted)
                        (- block-height 1)))
         (rendered-block '())
