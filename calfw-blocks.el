@@ -532,19 +532,21 @@ return an alist of rendering parameters."
          (cline (concat time-hline (cfw:k 'cline param)))
          (model (if model model (calfw-blocks-view-block-nday-week-model n (cfw:component-model component))))
          (begin-date (cfw:k 'begin-date model))
-         (end-date (cfw:k 'end-date model)))
+         (end-date (cfw:k 'end-date model))
+         day-of-week-names)
 
     ;; (print model)
     ;; update model
     (setf (cfw:component-model component) model)
-    (setq calfw-blocks-header-line-string (concat
-                                           "  Time"
+    (setq day-of-week-names
                                            (cl-loop for i in (cfw:k 'headers model)
                                                  with VL = (cfw:k 'vl param) with cell-width = (cfw:k 'cell-width param)
                                                  for name = (aref calendar-day-name-array i)
                                                  concat
                                                  (concat VL (cfw:rt (cfw:render-center cell-width name)
-                                                                    (cfw:render-get-week-face i 'cfw:face-header))))))
+                                      (cfw:render-get-week-face i 'cfw:face-header)))))
+    (setq calfw-blocks-header-line-string
+          (concat "  Time" day-of-week-names))
     (setq header-line-format '((:eval
                                 (if (< (line-number-at-pos (window-start)) 6)
                                     ""
@@ -564,7 +566,7 @@ return an alist of rendering parameters."
     (insert (cfw:rt (cfw:render-right time-width "Time")
                            'default))
     ;; day names
-    (calfw-blocks-render-day-of-week-names model param)
+    (insert day-of-week-names)
     (insert VL EOL cline)
     ;; contents
     (calfw-blocks-render-calendar-cells-block-weeks
@@ -591,14 +593,6 @@ Moves forward if NUM is negative."
   (lambda (&optional num)
     (interactive "p")
     (cfw:navi-next-day-command (* (- n) (or num 1)))))
-
-(defun calfw-blocks-render-day-of-week-names (model param)
-  "[internal] Insert week names."
-  (cl-loop for i in (cfw:k 'headers model)
-        with VL = (cfw:k 'vl param) with cell-width = (cfw:k 'cell-width param)
-        for name = (aref calendar-day-name-array i) do
-        (insert VL (cfw:rt (cfw:render-center cell-width name)
-                           (cfw:render-get-week-face i 'cfw:face-header)))))
 
 (defun calfw-blocks-render-toolbar (width current-view prev-cmd next-cmd)
   "[internal] Return a text of the toolbar.
