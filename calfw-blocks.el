@@ -1511,12 +1511,14 @@ is added at the beginning of a block to indicate it is the beginning."
       (cfw:dest-before-update dest)
       (cfw:dest-ol-selection-clear dest)
       (cfw:dest-ol-today-clear dest)
-      (let ((buffer-read-only nil))
+      (let ((buffer-read-only nil)
+            (prev-point (point)))
         (cfw:dest-with-region dest
                               (cfw:dest-clear dest)
                               (funcall (cfw:cp-dispatch-view-impl
                                         (cfw:component-view component))
-                                       component)))
+                   component))
+        (goto-char prev-point))
       (if (eq (cfw:component-view component) 'block-week)
           (calfw-blocks-dest-ol-today-set dest)
         (when cfw:highlight-today (cfw:dest-ol-today-set dest)))
@@ -1541,7 +1543,6 @@ is added at the beginning of a block to indicate it is the beginning."
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
 (advice-add 'cfw:open-calendar-buffer :after 'calfw-blocks-scroll-to-initial-visible-time)
-(advice-add 'cfw:cp-update :after 'calfw-blocks-scroll-to-initial-visible-time-after-update)
 
 (defun cfw:org-get-timerange (text)
   "Return a range object (begin end text).
