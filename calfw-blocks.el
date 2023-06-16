@@ -1509,8 +1509,10 @@ is added at the beginning of a block to indicate it is the beginning."
 (cl-defun calfw-blocks-scroll-to-initial-visible-time-after-update (component)
   (let ((buf (cfw:cp-get-buffer component))
         (view (cfw:component-view component)))
-    (when (string-match-p "block" (symbol-name view))
-      (with-current-buffer-window buf
+    (when (and buf
+               (get-buffer-window buf)
+               (string-match-p "block" (symbol-name view)))
+      (with-selected-window (get-buffer-window buf)
         (scroll-up (floor (* calfw-blocks-lines-per-hour
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
