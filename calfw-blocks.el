@@ -1265,7 +1265,7 @@ events are not displayed is shown."
            (word-break (or word-break "-"))
            prev-point
            is-whitespace
-           whitespaces '(?\s ?\t ?\n)
+           (whitespaces '(?\s ?\t ?\n))
            c)
       (forward-char forward-by)
       (setq prev-point (point))
@@ -1315,7 +1315,7 @@ events are not displayed is shown."
   ;; Doesn't work with \n in text
   (with-temp-buffer
     (insert text)
-    (wrap-text width word-break)
+    (calfw-blocks--wrap-text width word-break)
     (buffer-string)))
 
 (defun calfw-blocks--to-lines (text max-lines)
