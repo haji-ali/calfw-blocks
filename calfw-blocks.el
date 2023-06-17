@@ -857,7 +857,11 @@ b is the minute."
                    (endp (equal date end))
                    (width (- cell-width (if beginp 1 0) (if endp 1 0)))
                    (title (calfw-blocks-render-periods-title
-                           date week-day begin end content cell-width model)))
+                               date week-day begin end content
+                               (- cell-width
+                                  (if beginp 1 0)
+                                  (if endp 1 0))
+                               model)))
               (apply 'propertize (concat (when beginp cfw:fstring-period-start)
                                   (cfw:render-left width title ?-)
                                   (when endp cfw:fstring-period-end))
