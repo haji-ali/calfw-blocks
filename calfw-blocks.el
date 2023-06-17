@@ -694,14 +694,13 @@ command, such as `cfw:navi-previous(next)-month-command' and
                              (funcall content-fun
                                       (cfw:model-get-contents-by-date date model))
                              sorter)
-         for prs-contents = (cfw:render-rows-prop
-                             (append (if do-weeks
+            for prs-contents = (append (if do-weeks
                                          (calfw-blocks-render-periods
                                           date week-day raw-periods cell-width model)
                                        (calfw-blocks-render-periods-days
                                         date raw-periods cell-width))
                                      (mapcar 'cfw:render-default-content-face
-                                             raw-contents)))
+                                               raw-contents))
          for num-label = (if prs-contents
                              (format "(%s)"
                                      (+ (length raw-contents)
@@ -803,6 +802,7 @@ b is the minute."
                           'face (cfw:render-get-face-period content 'cfw:face-periods)
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
+                          'cfw:row-count (car p)
                           'calfw-blocks-interval interval
                           props)
             (let* ((begin (nth 0 (cadr p)))
@@ -822,6 +822,7 @@ b is the minute."
                           'face (cfw:render-get-face-period content 'cfw:face-periods)
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
+                          'cfw:row-count (car p)
                           props)))))
           (seq-sort
            (lambda (a b) (< (car a) (car b)))
@@ -1007,7 +1008,15 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
   (let ((max-len (apply 'max (mapcar 'length columns)))
         (new-columns '()))
     (dolist (c columns (nreverse new-columns))
-      (push (append c (make-list (- max-len (length c)) "")) new-columns))))
+      (let (nn)
+        (dolist (cc (cdr c))
+          (let ((row-count (get-text-property 0 'cfw:row-count cc)))
+            (when (> row-count (length nn))
+              (setf nn (append (make-list (- row-count (length nn)) "") nn))))
+          (push cc nn))
+        (push (append (cons (car c) (nreverse nn))
+                      (make-list (- max-len (length nn)) ""))
+              new-columns)))))
 
 
 ;; Interval helper functions
