@@ -127,10 +127,11 @@ Displays full name if nil.")
   "Faces for blocks.")
 
 
-(defface calfw-blocks-today-indicator
+(defface calfw-blocks-now-indicator
   '((t (:background "#e0a3ff")))
-  "Face for today indicator."
+  "Face for current time indicator."
   :group 'calfw-blocks)
+
 
 
 ;; Calendar model and params
@@ -1001,7 +1002,18 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              for final-line = (apply #'concat
                                      (append
                                       (list
-                                       (cfw:render-left time-width (nth (1- i) time-columns)))
+                                       (let ((time (nth (1- i) time-columns)))
+                                         (when (= (1- i) curr-time-linum)
+                                           (setq time (calfw-blocks-format-time
+                                                       (let ((curr-time (decode-time (current-time))))
+                                                         (list (nth 2 curr-time)
+                                                               (nth 1 curr-time)))))
+                                           (add-face-text-property
+                                            0 (length time) 'cfw:face-today-title
+                                            t time)
+                                           )
+                                         (cfw:render-left time-width time))
+                                       )
           (cl-loop for day-rows in breaked-day-columns
                 for date = (car day-rows)
                 for row = (nth i day-rows)
@@ -1030,7 +1042,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              (when (and calfw-blocks-show-current-time-indicator
                         (= (1- i) curr-time-linum))
                (add-face-text-property
-                0 (length final-line) 'calfw-blocks-today-indicator
+                time-width (length final-line) 'calfw-blocks-now-indicator
                 t final-line))
              (insert final-line))
     (insert cline)))
