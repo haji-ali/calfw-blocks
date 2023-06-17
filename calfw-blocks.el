@@ -404,8 +404,6 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
           (insert cline))
     (insert EOL)))
 
-(advice-add 'cfw:cp-dispatch-view-impl :override 'calfw-blocks-cp-dispatch-view-impl)
-
 ;; Block views
 
 (defun calfw-blocks-view-block-nday-week-model (n model)
@@ -653,8 +651,6 @@ command, such as `cfw:navi-previous(next)-month-command' and
            width (concat sp prev sp next sp today sp)
            (concat day sp 3day sp week sp tweek sp transpose-week sp transpose-two-week sp month sp))))
     (cfw:render-default-content-face toolbar-text 'cfw:face-toolbar)))
-
-(advice-add 'cfw:render-toolbar :override 'calfw-blocks-render-toolbar)
 
 (defun calfw-blocks-change-view-transpose-two-weeks ()
   "change-view-month"
@@ -1386,7 +1382,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                ;; (when (not end-of-cell) " " );;(if (= i 0) "*" "|"))
                                )
                               'face
-                              (seq-filter (lambda (x) x)
+                              ;; TODO: Use cfw:render-get-face-content
+                              (seq-filter 'identity ;; filter nil's
                                           (list
                                            ;; (calendar-make-temp-face
                                            ;;  (list :background source-clr
@@ -1399,8 +1396,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                                   0.5
                                                   (face-background 'default)))
                                            (cons 'foreground-color source-clr)
-                                           (if is-exceeded-indicator 'italic)
-                                           (if (= i 0) 'calfw-blocks-overline)))
+                                           (when is-exceeded-indicator 'italic)
+                                           (when (= i 0) 'calfw-blocks-overline)))
                               'calfw-blocks-horizontal-pos block-horizontal-pos))
             rendered-block)
       (setq block-lines (cdr block-lines)))
@@ -1489,15 +1486,6 @@ is added at the beginning of a block to indicate it is the beginning."
 (defun calfw-blocks-superimpose-face (text face)
   (propertize text 'face (list (get-text-property 0 'face text) face)))
 
-(defmacro cfw:dest-with-region (dest &rest body)
-    (let (($dest (gensym)))
-      `(let ((,$dest ,dest))
-         (with-current-buffer (cfw:dest-buffer ,$dest)
-           (save-restriction
-             (narrow-to-region
-              (cfw:dest-point-min ,$dest) (cfw:dest-point-max ,$dest))
-             ,@body)))))
-
 (defun calfw-blocks-dest-ol-today-set (dest)
   "[internal] Put a highlight face on today."
   (let ((ols))
@@ -1506,6 +1494,7 @@ is added at the beginning of a block to indicate it is the beginning."
        dest (calendar-current-date)
        (lambda (begin end)
          (let ((overlay (make-overlay begin end)))
+           ;; This is the only difference
            (if (eq 'cfw:face-day-title
                    (get-text-property begin 'face))
                (overlay-put overlay 'face
@@ -1513,30 +1502,37 @@ is added at the beginning of a block to indicate it is the beginning."
            (push overlay ols)))))
     (setf (cfw:dest-today-ol dest) ols)))
 
-(defvar cfw:highlight-today t
-  "Variable to control whether today is rendered differently than other days.")
+(defmacro calfw-blocks-perserve-buffer-view (buf &rest body)
+  (declare (indent 1) (debug t))
+  `(let* ((wind (get-buffer-window buf))
+          (prev-point (point))
+          (prev-window-start (when wind (window-start))))
+     (unwind-protect
+         (progn
+           ,@body)
+       (goto-char prev-point)
+       (when wind
+         (set-window-start wind prev-window-start)))))
 
-(defun cfw:cp-update (component)
+(defun calfw-blocks-cfw:cp-update (component &optional initial-date)
   "[internal] Clear and re-draw the component content."
   (let* ((buf (cfw:cp-get-buffer component))
          (dest (cfw:component-dest component)))
     (with-current-buffer buf
       (cfw:dest-before-update dest)
-      (cfw:dest-ol-selection-clear dest)
       (cfw:dest-ol-today-clear dest)
-      (let ((buffer-read-only nil)
-            (prev-point (point)))
+      (let* ((buffer-read-only nil))
+        (calfw-blocks-perserve-buffer-view buf
         (cfw:dest-with-region dest
                               (cfw:dest-clear dest)
                               (funcall (cfw:cp-dispatch-view-impl
                                         (cfw:component-view component))
-                   component))
-        (goto-char prev-point))
+                     component))))
       (if (eq (cfw:component-view component) 'block-week)
           (calfw-blocks-dest-ol-today-set dest)
         (when cfw:highlight-today (cfw:dest-ol-today-set dest)))
-      (cfw:cp-set-selected-date
-       component (cfw:component-selected component))
+      (when initial-date
+        (cfw:cp-goto-date component initial-date))
       (cfw:dest-after-update dest)
       (cfw:cp-fire-update-hooks component))))
 
@@ -1555,9 +1551,7 @@ is added at the beginning of a block to indicate it is the beginning."
         (scroll-up (floor (* calfw-blocks-lines-per-hour
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
-(advice-add 'cfw:open-calendar-buffer :after 'calfw-blocks-scroll-to-initial-visible-time)
-
-(defun cfw:org-get-timerange (text)
+(defun calfw-blocks-cfw:org-get-timerange (text)
   "Return a range object (begin end text).
 If TEXT does not have a range, return nil."
   (let* ((dotime (cfw:org-tp text 'dotime)))
@@ -1635,9 +1629,19 @@ If TEXT does not have a range, return nil."
      ;; table layout.
      'display nil
      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
+
+
+(advice-add 'cfw:open-calendar-buffer
+            :after 'calfw-blocks-scroll-to-initial-visible-time)
+(advice-add 'cfw:render-toolbar
+            :override 'calfw-blocks-render-toolbar)
+(advice-add 'cfw:cp-dispatch-view-impl
+            :override 'calfw-blocks-cp-dispatch-view-impl)
+(advice-add 'cfw:cp-update
+            :override 'calfw-blocks-cfw:cp-update)
+(advice-add 'cfw:org-get-timerange
+            :override 'calfw-blocks-cfw:org-get-timerange)
 (setq cfw:org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
-
-
 
 (provide 'calfw-blocks)
 ;;; calfw-blocks.el ends here
