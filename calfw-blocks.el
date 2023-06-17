@@ -111,22 +111,6 @@ Displays full name if nil.")
 (defvar-local calfw-blocks-header-line-string nil)
 
 ;; Faces
-(defun calfw-blocks-create-faces ()
-  (let ((faces ())
-        newface)
-    (dolist (color calfw-blocks-colors-list)
-      (setq newface (make-face
-                (intern (concat "calfw-blocks-" color))))
-            (set-face-background newface color)
-            (set-face-foreground newface "black")
-            (push newface faces))
-    (reverse faces)))
-
-(defvar calfw-blocks-faces-list
-  (calfw-blocks-create-faces)
-  "Faces for blocks.")
-
-
 (defface calfw-blocks-now-indicator
   '((t (:background "#e0a3ff")))
   "Face for current time indicator."
@@ -1351,15 +1335,14 @@ events are not displayed is shown."
    if (and (>= char 16) (<= char 127))
    concat (string char)))
 
-(defun calfw-blocks-split-single-block (block cell-width face)
+(defun calfw-blocks-split-single-block (block cell-width)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
 BLOCK is expected to contain elements of the form (event
 vertical-pos horizontal-pos). Event is a string, vertical-pos and
 horizontal-pos are two element lists representing half open
 intervals. See `calfw-blocks--get-block-positions' for more
-details about vertical-pos and horizontal-pos. FACE is applied to
-all the resulting lines.
+details about vertical-pos and horizontal-pos.
 
 An overline is added to the first line of an event block. A character
 is added at the beginning of a block to indicate it is the beginning."
@@ -1409,14 +1392,6 @@ is added at the beginning of a block to indicate it is the beginning."
       (setq block-lines (cdr block-lines)))
     (reverse rendered-block)))
 
-(defun calfw-blocks-zip-with-faces (blocks)
-  (let ((blocks-with-faces '()))
-    (dotimes (i (length blocks))
-      (push (cons (nth i blocks)
-                  (nth (mod i (length calfw-blocks-faces-list)) calfw-blocks-faces-list))
-            blocks-with-faces))
-    (reverse blocks-with-faces)))
-
 (defun calfw-blocks-render-all-day-events (lines cell-width cell-height)
   (let ((all-day-lines (seq-filter (lambda (line)
                                      (not (car (get-text-property 0 'calfw-blocks-interval
@@ -1435,8 +1410,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                      lines))
          (block-positions (calfw-blocks--get-block-positions interval-lines cell-width))
          (split-blocks (seq-sort (lambda (a b) (< (car a) (car b)))
-                                 (mapcan (lambda (bf) (calfw-blocks-split-single-block (car bf) cell-width (cdr bf)))
-                                  (calfw-blocks-zip-with-faces block-positions))))
+                                 (mapcan (lambda (bf) (calfw-blocks-split-single-block bf cell-width))
+                                         block-positions)))
          (rendered-lines '())
          (curr-time-grid-line (calfw-blocks--current-time-vertical-position)))
     (dolist (i (number-sequence 0 (1- cell-height)))
