@@ -799,7 +799,9 @@ b is the minute."
                               (string= (substring content 0 5) begintime))
                          (concat begintime "-" endtime (substring content 5))
                        content)
-                          'face (cfw:render-get-face-period content 'cfw:face-periods)
+                         'face (cons
+                                'calfw-blocks-overline
+                                (cfw:render-get-face-period content 'cfw:face-periods))
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
                           'cfw:row-count (car p)
@@ -817,9 +819,11 @@ b is the minute."
                                   (if endp 1 0))
                                model)))
               (apply 'propertize (concat (when beginp cfw:fstring-period-start)
-                                  (cfw:render-left width title ?-)
+                                             (cfw:render-left width title ? )
                                   (when endp cfw:fstring-period-end))
-                          'face (cfw:render-get-face-period content 'cfw:face-periods)
+                         'face (cons
+                                'calfw-blocks-overline
+                                (cfw:render-get-face-period content 'cfw:face-periods))
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
                           'cfw:row-count (car p)
@@ -1361,7 +1365,7 @@ is added at the beginning of a block to indicate it is the beginning."
                               'face
                               (seq-filter
                                'identity ;; filter out nil's
-                               (append
+                               (cons
                                 (cfw:render-get-face-content
                                  block-string
                                  'cfw:face-default-content)
