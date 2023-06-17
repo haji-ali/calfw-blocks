@@ -116,34 +116,6 @@ Displays full name if nil.")
   "Face for current time indicator."
   :group 'calfw-blocks)
 
-
-
-;; Calendar model and params
-
-(defun calfw-blocks-cp-dispatch-view-impl (view)
-  "[internal] Return a view function which is corresponding to the view symbol.
-VIEW is a symbol of the view type."
-  (let ((maps
-         '((month             .  cfw:view-month)
-           (week              .  cfw:view-week)
-           (two-weeks         .  cfw:view-two-weeks)
-           (day               .  cfw:view-day)
-           (block-week        .  calfw-blocks-view-block-week)
-           (block-day         .  calfw-blocks-view-block-day)
-           (block-2-day       .  calfw-blocks-view-block-2-day)
-           (block-3-day       .  calfw-blocks-view-block-3-day)
-           (block-4-day       .  calfw-blocks-view-block-4-day)
-           (block-5-day       .  calfw-blocks-view-block-5-day)
-           (block-7-day       .  calfw-blocks-view-block-7-day)
-           (transpose-8-day   .  calfw-blocks-view-transpose-8-day)
-           (transpose-10-day  .  calfw-blocks-view-transpose-10-day)
-           (transpose-12-day  .  calfw-blocks-view-transpose-12-day)
-           (transpose-14-day  .  calfw-blocks-view-transpose-14-day)
-           (transpose-two-weeks    . calfw-blocks-view-transpose-two-weeks))
-         ))
-    (or (alist-get view maps)
-        (error "Not found such view : %s" view))))
-
 ;; Transpose
 
 (defun calfw-blocks-render-append-transpose-parts (param)
@@ -820,7 +792,7 @@ b is the minute."
                   (interval (nth 4 (cadr p)))
                   (begintime (if interval (calfw-blocks-format-time (car interval))))
                   (endtime (if interval (calfw-blocks-format-time (cdr interval)))))
-          (if (or interval (cfw:org-tp content 'calfw-blocks-interval)
+          (if (or interval (get-text-property 0 'calfw-blocks-interval content)
                   (not calfw-blocks-render-multiday-events))
               (apply 'propertize
                      (if (and calfw-blocks-display-end-times
@@ -1522,9 +1494,12 @@ is added at the beginning of a block to indicate it is the beginning."
         (scroll-up (floor (* calfw-blocks-lines-per-hour
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
+;;; calfw-org
 (defun calfw-blocks-cfw:org-get-timerange (text)
   "Return a range object (begin end text).
 If TEXT does not have a range, return nil."
+  ;; TODO: This is exactly the same as `cfw:org-get-timerange' except that
+  ;; it fixed cur-day = 0
   (let* ((dotime (cfw:org-tp text 'dotime)))
     (and (stringp dotime) (string-match org-ts-regexp dotime)
          (let ((date-string  (match-string 1 dotime))
@@ -1601,15 +1576,48 @@ If TEXT does not have a range, return nil."
      'display nil
      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
 
+;; TODO: This should be shorter than the previous function.
+;; (defun calfw-blocks-org-summary-format (old-fn item)
+;;   "Version of cfw:org-summary-format that adds time data needed to draw blocks."
+;;   (let* ((time-of-day (cfw:org-tp item 'time-of-day))
+;;          (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
+;;          (duration (cfw:org-tp item 'duration))
+;;          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
+;;                                                        (+ (nth 1 start-time) (mod duration 60)))
+;;                      start-time))
+;;          (end-time-str (and end-time
+;;                             (format "%02i:%02i " (nth 0 end-time) (nth 1 end-time)))))
+;;     (propertize
+;;      (funcall old-fn item)
+;;      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
+
+
+;; TODO: This should be done once only
+(setq
+ cfw:cp-dipatch-funcs
+ (append
+  cfw:cp-dipatch-funcs
+  '((block-week        .  calfw-blocks-view-block-week)
+    (block-day         .  calfw-blocks-view-block-day)
+    (block-2-day       .  calfw-blocks-view-block-2-day)
+    (block-3-day       .  calfw-blocks-view-block-3-day)
+    (block-4-day       .  calfw-blocks-view-block-4-day)
+    (block-5-day       .  calfw-blocks-view-block-5-day)
+    (block-7-day       .  calfw-blocks-view-block-7-day)
+    (transpose-8-day   .  calfw-blocks-view-transpose-8-day)
+    (transpose-10-day  .  calfw-blocks-view-transpose-10-day)
+    (transpose-12-day  .  calfw-blocks-view-transpose-12-day)
+    (transpose-14-day  .  calfw-blocks-view-transpose-14-day)
+    (transpose-two-weeks    . calfw-blocks-view-transpose-two-weeks))))
 
 (advice-add 'cfw:open-calendar-buffer
             :after 'calfw-blocks-scroll-to-initial-visible-time)
 (advice-add 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
-(advice-add 'cfw:cp-dispatch-view-impl
-            :override 'calfw-blocks-cp-dispatch-view-impl)
 (advice-add 'cfw:cp-update
             :override 'calfw-blocks-cfw:cp-update)
+
+;;; calfw-org
 (advice-add 'cfw:org-get-timerange
             :override 'calfw-blocks-cfw:org-get-timerange)
 (setq cfw:org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
