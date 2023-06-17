@@ -138,25 +138,26 @@ Displays full name if nil.")
 (defun calfw-blocks-cp-dispatch-view-impl (view)
   "[internal] Return a view function which is corresponding to the view symbol.
 VIEW is a symbol of the view type."
-  (cond
-   ((eq 'month     view)  'cfw:view-month)
-   ((eq 'week      view)  'cfw:view-week)
-   ((eq 'two-weeks view)  'cfw:view-two-weeks)
-   ((eq 'day       view)  'cfw:view-day)
-   ((eq 'block-week       view)  'calfw-blocks-view-block-week)
-   ((eq 'block-day       view)  'calfw-blocks-view-block-day)
-   ((eq 'block-2-day       view)  'calfw-blocks-view-block-2-day)
-   ((eq 'block-3-day       view)  'calfw-blocks-view-block-3-day)
-   ((eq 'block-4-day       view)  'calfw-blocks-view-block-4-day)
-   ((eq 'block-5-day       view)  'calfw-blocks-view-block-5-day)
-   ((eq 'block-7-day       view)  'calfw-blocks-view-block-7-day)
-   ((eq 'transpose-8-day       view)  'calfw-blocks-view-transpose-8-day)
-   ((eq 'transpose-10-day       view)  'calfw-blocks-view-transpose-10-day)
-   ((eq 'transpose-12-day       view)  'calfw-blocks-view-transpose-12-day)
-   ((eq 'transpose-14-day       view)  'calfw-blocks-view-transpose-14-day)
-   ((eq 'transpose-two-weeks    view) 'calfw-blocks-view-transpose-two-weeks)
-   (t (error "Not found such view : %s" view))))
-
+  (let ((maps
+         '((month             .  cfw:view-month)
+           (week              .  cfw:view-week)
+           (two-weeks         .  cfw:view-two-weeks)
+           (day               .  cfw:view-day)
+           (block-week        .  calfw-blocks-view-block-week)
+           (block-day         .  calfw-blocks-view-block-day)
+           (block-2-day       .  calfw-blocks-view-block-2-day)
+           (block-3-day       .  calfw-blocks-view-block-3-day)
+           (block-4-day       .  calfw-blocks-view-block-4-day)
+           (block-5-day       .  calfw-blocks-view-block-5-day)
+           (block-7-day       .  calfw-blocks-view-block-7-day)
+           (transpose-8-day   .  calfw-blocks-view-transpose-8-day)
+           (transpose-10-day  .  calfw-blocks-view-transpose-10-day)
+           (transpose-12-day  .  calfw-blocks-view-transpose-12-day)
+           (transpose-14-day  .  calfw-blocks-view-transpose-14-day)
+           (transpose-two-weeks    . calfw-blocks-view-transpose-two-weeks))
+         ))
+    (or (alist-get view maps)
+        (error "Not found such view : %s" view))))
 
 ;; Transpose
 
@@ -1382,36 +1383,19 @@ is added at the beginning of a block to indicate it is the beginning."
                                ;; (when (not end-of-cell) " " );;(if (= i 0) "*" "|"))
                                )
                               'face
-                              ;; TODO: Use cfw:render-get-face-content
-                              (seq-filter 'identity ;; filter nil's
+                              (seq-filter
+                               'identity ;; filter out nil's
+                               (append
+                                (cfw:render-get-face-content
+                                 block-string
+                                 'cfw:face-default-content)
                                           (list
-                                           ;; (calendar-make-temp-face
-                                           ;;  (list :background source-clr
-                                           ;;        :foreground "black"))
-                                           ;; (ansi-color-make-face
-                                           ;;  :background source-clr)
-                                           (cons 'background-color
-                                                 (calfw-blocks--composite-color
-                                                  source-clr
-                                                  0.5
-                                                  (face-background 'default)))
-                                           (cons 'foreground-color source-clr)
                                            (when is-exceeded-indicator 'italic)
-                                           (when (= i 0) 'calfw-blocks-overline)))
+                                 (when (= i 0) 'calfw-blocks-overline))))
                               'calfw-blocks-horizontal-pos block-horizontal-pos))
             rendered-block)
       (setq block-lines (cdr block-lines)))
     (reverse rendered-block)))
-
-(defun calfw-blocks--composite-color (color1 transparency color2)
-  "Composite COLOR with TRANSPARENCY over COLOR2."
-  (let* ((color-rgb (color-name-to-rgb color1))
-         (background-rgb (color-name-to-rgb color2))
-         (result-rgb (cl-mapcar
-                      (lambda (c bg) (+ (* transparency c)
-                                        (* (- 1 transparency) bg)))
-                      color-rgb background-rgb)))
-    (apply 'color-rgb-to-hex (append result-rgb '(2)))))
 
 (defun calfw-blocks-zip-with-faces (blocks)
   (let ((blocks-with-faces '()))
