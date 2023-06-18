@@ -873,43 +873,6 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
         (cline (concat time-hline (cfw:k 'cline param)))
         (earliest-date (caar day-columns))
         (curr-time-linum (calfw-blocks--current-time-vertical-position)))
-    ;; (insert time-hline)
-    ;; convert to regular lisp style
-    ;; (let ((breaked-date-columns
-    ;;        (dolist (day-rows day-columns)
-    ;;          (let ((date (car day-rows))
-    ;;                (tday (caadr day-rows))
-    ;;                (ant (cdadr day-rows)))
-    ;;            ))))
-    ;; (dolist (day-rows breaked-date-columns)
-    ;;   (let ((date (car day-rows))
-    ;;         (tday (caadr day-rows))
-    ;;         (ant (cdadr day-rows)))
-    ;;     (insert
-    ;;        VL (if date
-    ;;               (cfw:tp
-    ;;                (cfw:render-default-content-face
-    ;;                 (cfw:render-add-right cell-width tday ant)
-    ;;                 'cfw:face-day-title)
-    ;;                'cfw:date date)
-    ;;             (cfw:render-left cell-width "")))
-    ;;     )))
-    ;; (cl-loop for day-rows in day-columns
-    ;;          for date = (car day-rows)
-    ;;          for (tday . ant) = (cadr day-rows)
-    ;;          do
-    ;;          (insert
-    ;;           VL (if date
-    ;;                  (cfw:tp
-    ;;                   (cfw:render-default-content-face
-    ;;                    (cfw:render-add-right cell-width tday ant)
-    ;;                    'cfw:face-day-title)
-    ;;                   'cfw:date date)
-    ;;                (cfw:render-left cell-width ""))))
-    ;;(insert VL EOL)
-    ;; (print cell-height) ;; 39
-    ;; (print cell-width) ;; 17
-    ;; day contents
     (cl-loop with breaked-all-day-columns =
         (cl-loop for day-rows in day-columns
                         for (date ants . lines) = day-rows
