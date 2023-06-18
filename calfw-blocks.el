@@ -46,9 +46,10 @@ Also used for events with a start time and no end time."
   :type 'boolean)
 
 (defcustom calfw-blocks-render-multiday-events t
-  "Whether to render (nonblock) multiday events."
+  "Whether to render (nonblock) multiday events.
+If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
-  :type 'boolean)
+  :type 'symbol)
 
 (defcustom calfw-blocks-time-grid-lines-on-top t
   "Whether time grid lines should cut through vertical lines."
@@ -773,6 +774,7 @@ b is the minute."
 
 (defun calfw-blocks-render-periods (date week-day periods-stack cell-width model)
   "[internal] This function translates PERIOD-STACK to display content on the DATE."
+  (seq-filter 'identity
   (mapcar (lambda (p)
             (let* ((content (nth 2 (cadr p)))
                   (props (nth 3 (cadr p)))
@@ -795,18 +797,47 @@ b is the minute."
                           'cfw:row-count (car p)
                           'calfw-blocks-interval interval
                           props)
+                            (if (eq calfw-blocks-render-multiday-events 'cont)
+                                (let* ((begin (nth 0 (cadr p)))
+                                       (begin-date (cfw:k 'begin-date model))
+                                       (beginp (or (equal date begin)
+                                                   (and
+                                                    (equal date begin-date)
+                                                    (< (calendar-absolute-from-gregorian begin)
+                                                       (calendar-absolute-from-gregorian begin-date))))))
+                                  (when beginp
+                                    (let* ((end (nth 1 (cadr p)))
+                                           (end-date (cfw:k 'end-date model))
+                                           (len (1+ (min (cfw:days-diff begin end)
+                                                         (cfw:days-diff begin end-date)
+                                                         (cfw:days-diff begin-date end)
+                                                         (cfw:days-diff begin-date end-date)))))
+                                      (apply 'propertize
+                                             (cfw:render-left (+ (1- len) (* len cell-width)) content ? )
+                                             'face (cons
+                                                    'calfw-blocks-overline
+                                                    (cfw:render-get-face-period content 'cfw:face-periods))
+                                             'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
+                                             'cfw:period t
+                                             'cfw:cell-span len
+                                             'help-echo (substring-no-properties content)
+                                             'cfw:row-count (car p)
+                                             props))))
             (let* ((begin (nth 0 (cadr p)))
                    (end (nth 1 (cadr p)))
                    (beginp (equal date begin))
                    (endp (equal date end))
-                   (width (- cell-width (if beginp 1 0) (if endp 1 0)))
+                                     (width (- cell-width
+                                               (if beginp (length cfw:fstring-period-start) 0)
+                                               (if endp (length cfw:fstring-period-end) 0)))
                    (title (calfw-blocks-render-periods-title
                                date week-day begin end content
                                (- cell-width
                                   (if beginp 1 0)
                                   (if endp 1 0))
                                model)))
-              (apply 'propertize (concat (when beginp cfw:fstring-period-start)
+                                (apply 'propertize (concat
+                                                    (when beginp cfw:fstring-period-start)
                                              (cfw:render-left width title ? )
                                   (when endp cfw:fstring-period-end))
                          'face (cons
@@ -814,14 +845,12 @@ b is the minute."
                                 (cfw:render-get-face-period content 'cfw:face-periods))
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
+                                       'help-echo (substring-no-properties content)
                           'cfw:row-count (car p)
-                          props)))))
+                                       props))))))
           (seq-sort
            (lambda (a b) (< (car a) (car b)))
-           ;; (lambda (a b)
-           ;;   (calendar-date-compare (list (nth 0 (cadr a)))
-           ;;                          (list (nth 0 (cadr b)))))
-                    periods-stack)))
+                       periods-stack))))
 
 (defun calfw-blocks-render-periods-title (date week-day begin end content cell-width model)
   "[internal] Return a title string.
@@ -879,26 +908,32 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                         collect
                         (cons date (calfw-blocks-render-all-day-events
                                 lines cell-width (1- cell-height))))
-        with breaked-all-day-columns-padded =
-        (calfw-blocks-pad-whitespace breaked-all-day-columns)
         with all-day-columns-height = (seq-max (mapcar 'length breaked-all-day-columns))
+             with breaked-all-day-rows-padded =
+             (calfw-blocks--pad-and-transpose breaked-all-day-columns)
         for i from 1 below all-day-columns-height do
           (insert (cfw:render-left time-width ""))
-        (cl-loop for day-rows in breaked-all-day-columns-padded
-                for date = (car day-rows)
-                for row = (nth i day-rows)
+             for row = (car breaked-all-day-rows-padded)
+             for date = (caar breaked-all-day-columns)
+             do
+             (setq breaked-all-day-rows-padded (cdr breaked-all-day-rows-padded))
+             (setq breaked-all-day-columns (cdr breaked-all-day-columns))
+             (cl-loop for cell in row
+                      for cell-span = (or (get-text-property 0 'cfw:cell-span cell) 1)
                 do
                 (insert
                  (if (and calfw-blocks-show-time-grid
                           calfw-blocks-time-grid-lines-on-top
                           (= (mod (1- i) calfw-blocks-lines-per-hour) 0)
-                          (string= row (make-string cell-width ?-))
+                                (string= cell (make-string cell-width ?-))
                           (not (eq date earliest-date)))
                      ?-
                    VL)
                  (cfw:tp
                      (cfw:render-separator
-                      (cfw:render-left cell-width (and row (format "%s" row))))
+                         (cfw:render-left (+ (1- cell-span)
+                                             (* cell-span cell-width))
+                                          (and cell (format "%s" cell))))
                      'cfw:date date)))
           (insert VL EOL))
 
@@ -959,19 +994,35 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              (insert final-line))
     (insert cline)))
 
-(defun calfw-blocks-pad-whitespace (columns)
-  (let ((max-len (apply 'max (mapcar 'length columns)))
-        (new-columns '()))
-    (dolist (c columns (nreverse new-columns))
-      (let (nn)
-        (dolist (cc (cdr c))
-          (let ((row-count (get-text-property 0 'cfw:row-count cc)))
-            (when (> row-count (length nn))
-              (setf nn (append (make-list (- row-count (length nn)) "") nn))))
-          (push cc nn))
-        (push (append (cons (car c) (nreverse nn))
-                      (make-list (- max-len (length nn)) ""))
-              new-columns)))))
+(defun calfw-blocks--pad-and-transpose (columns)
+  "Returns the columns as rows, padded with space when needed"
+  (let* ((max-len (apply 'max (mapcar 'length columns)))
+         (col-count (length columns)))
+    (cl-loop for i from 0 below (1- max-len)  ;; Loop over rows
+             for filled-cells = 0
+             for rows = (cl-loop
+                         for c in columns
+                         for cols = (cdr c)
+                         when (and cols (< filled-cells col-count))
+                         collect
+                         (let* ((col (car cols))
+                                (on-row (eq i
+                                            (or (get-text-property
+                                                 0 'cfw:row-count col)
+                                                i)))
+                                (cell-span (or (get-text-property
+                                                0 'cfw:cell-span col)
+                                               1)))
+                           (if on-row
+                               (progn
+                                 (setq filled-cells (+ filled-cells
+                                                       cell-span))
+                                 (setcdr c (cdr cols))
+                                 col)
+                             (setq filled-cells (+ filled-cells 1))
+                             " ")))
+             collect
+             (append rows (make-list (- col-count filled-cells) "")))))
 
 
 ;; Interval helper functions
@@ -1333,7 +1384,9 @@ is added at the beginning of a block to indicate it is the beginning."
                                      (not (car (get-text-property 0 'calfw-blocks-interval
                                                                        line))))
                                      lines))
-        (cfw:render-line-breaker 'cfw:render-line-breaker-wordwrap))
+        (cfw:render-line-breaker (if (eq calfw-blocks-render-multiday-events 'cont)
+                                     (lambda (x &rest _) (list x))
+                                   'cfw:render-line-breaker-wordwrap)))
         (cfw:render-break-lines all-day-lines cell-width cell-height)))
 
 (defun calfw-blocks-render-event-blocks (lines cell-width cell-height)
