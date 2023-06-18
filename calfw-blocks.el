@@ -66,18 +66,6 @@ Also used for events with a start time and no end time."
   :group 'calfw-blocks
   :type 'boolean)
 
-(defcustom calfw-blocks-colors-list
-  '("#ef7969"
-    "#49c029"
-    "#7090ff"
-    "#e07fff"
-    "#70d3f0"
-    "#ffcf00")
-  "Colors to use for blocks. The default colors are
-Modus Vivendi's colors for graphs."
-  :group 'calfw-blocks
-  :type 'list)
-
 (defcustom calfw-blocks-display-end-times t
   "Whether or not to display end times in blocks.")
 
