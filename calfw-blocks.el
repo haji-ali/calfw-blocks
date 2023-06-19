@@ -492,19 +492,20 @@ return an alist of rendering parameters."
            (concat VL (cfw:render-center
                        cell-width
                        (concat
-                        (when (equal (calendar-current-date) date)
                           (cfw:rt
-                           "@"
-                           'cfw:face-today-title))
-                       (cfw:rt
-                        (format "%s (%s%d)"
                                  (calendar-day-name date t)
+                         (cfw:render-get-week-face i 'cfw:face-header))
+                        " "
+                        (cfw:rt
+                         (format "%s%d"
                                 (if (= (calendar-extract-month date)
                                        (calendar-extract-month begin-date))
                                     ""
                                   (format "%d/" (calendar-extract-month date)))
                                 (calendar-extract-day date))
-                         (cfw:render-get-week-face i 'cfw:face-header)))))
+                         (if (equal (calendar-current-date) date)
+                             'cfw:face-today-title
+                           (cfw:render-get-week-face i 'cfw:face-header))))))
            do
            (setq date  (cfw:date-after date 1))))
 
@@ -953,7 +954,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                             lines cell-width (1- cell-height))))
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
           with time-columns = (calfw-blocks-time-column time-width cell-height)
-             for i from 1 below cell-height
+             for i from 1 to cell-height
              for time = (prog1 (car time-columns)
                           (setq time-columns (cdr time-columns)))
              for curVL = (if time
