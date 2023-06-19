@@ -959,12 +959,22 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              for curVL = (if time
                              (propertize VL 'face 'calfw-blocks-overline)
                            VL)
+             for today = (calendar-current-date)
+             for today-shown = (cl-some
+                                'identity
+                                (cl-loop for day-rows in breaked-day-columns
+                                         for date = (car day-rows)
+                                         collect
+                                         (equal date today)))
              for final-line
              = (apply #'concat
                                      (append
                                       (list
                         (progn
-                                         (when (= (1- i) curr-time-linum)
+                          (when (and
+                                 calfw-blocks-show-current-time-indicator
+                                 (= (1- i) curr-time-linum)
+                                 today-shown)
                                            (setq time (calfw-blocks-format-time
                                                        (let ((curr-time (decode-time (current-time))))
                                                          (list (nth 2 curr-time)
@@ -987,7 +997,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                   (if (and
                                                        calfw-blocks-show-current-time-indicator
                                                        (= (1- i) curr-time-linum)
-                                                       (equal date (calendar-current-date)))
+                                        (equal date today))
                                                       (propertize "@"
                                                                   'face
                                                                   'cfw:face-today-title)
@@ -999,7 +1009,8 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                        (list curVL EOL)))
              do
              (when (and calfw-blocks-show-current-time-indicator
-                        (= (1- i) curr-time-linum))
+                        (= (1- i) curr-time-linum)
+                        today-shown)
                (add-face-text-property
                 time-width (length final-line) 'calfw-blocks-now-indicator
                 t final-line))
