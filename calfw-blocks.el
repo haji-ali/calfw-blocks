@@ -908,10 +908,18 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                         collect
                         (cons date (calfw-blocks-render-all-day-events
                                 lines cell-width (1- cell-height))))
-        with all-day-columns-height = (seq-max (mapcar 'length breaked-all-day-columns))
+             with all-day-columns-height = ;;(seq-max (mapcar 'length
+             (+ 1 (seq-max (mapcar (lambda (x)
+                                     (seq-max
+                                      (or (seq-filter 'identity
+                                                      (mapcar (lambda (y)
+                                                                (get-text-property 0 'cfw:row-count y))
+                                                              (cdr x)))
+                                          '(0))))
+                                   breaked-all-day-columns)))
              with breaked-all-day-rows-padded =
-             (calfw-blocks--pad-and-transpose breaked-all-day-columns)
-        for i from 1 below all-day-columns-height do
+             (calfw-blocks--pad-and-transpose all-day-columns-height breaked-all-day-columns)
+             for i from 0 below all-day-columns-height do
           (insert (cfw:render-left time-width ""))
              for row = (car breaked-all-day-rows-padded)
              for date = (caar breaked-all-day-columns)
@@ -924,7 +932,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                 (insert
                  (if (and calfw-blocks-show-time-grid
                           calfw-blocks-time-grid-lines-on-top
-                          (= (mod (1- i) calfw-blocks-lines-per-hour) 0)
+                                (= (mod i calfw-blocks-lines-per-hour) 0)
                                 (string= cell (make-string cell-width ?-))
                           (not (eq date earliest-date)))
                      ?-
@@ -979,7 +987,15 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                       (propertize "@"
                                                                   'face
                                                                   'cfw:face-today-title)
-                                                    VL))
+                                                    ;; TODO: Better way to display
+                                                    ;; grids!
+                                                    (if (eq 'calfw-blocks-overline
+                                                            (get-text-property 0 'face row))
+                                                        (propertize VL 'face
+                                                        'calfw-blocks-overline)
+                                                        VL
+                                                      VL)
+                                                    ))
                  (cfw:tp
                   (cfw:render-separator
                    (cfw:render-left cell-width (and row (format "%s" row))))
@@ -994,16 +1010,17 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              (insert final-line))
     (insert cline)))
 
-(defun calfw-blocks--pad-and-transpose (columns)
+(defun calfw-blocks--pad-and-transpose (max-len columns)
   "Returns the columns as rows, padded with space when needed"
-  (let* ((max-len (apply 'max (mapcar 'length columns)))
-         (col-count (length columns)))
-    (cl-loop for i from 0 below (1- max-len)  ;; Loop over rows
+  (let* ((col-count (length columns)))
+    (prog1
+      (cl-loop for i from 0 below max-len  ;; Loop over rows
              for filled-cells = 0
              for rows = (cl-loop
-                         for c in columns
+                           for c being the elements of columns using (index j)
                          for cols = (cdr c)
-                         when (and cols (< filled-cells col-count))
+                           when (<= filled-cells j)
+                           if cols
                          collect
                          (let* ((col (car cols))
                                 (on-row (eq i
@@ -1019,10 +1036,20 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                        cell-span))
                                  (setcdr c (cdr cols))
                                  col)
+                               ;; If (< filled-cells col-count)
+                               ;; then we need to skip
                              (setq filled-cells (+ filled-cells 1))
-                             " ")))
+                               ""))
+                           else
              collect
-             (append rows (make-list (- col-count filled-cells) "")))))
+                           (progn
+                             (setq filled-cells (+ filled-cells 1))
+                             "")
+                           end)
+               collect
+               (append rows (make-list (- col-count filled-cells) "")))
+      ;; Assert that all columns are moved into rows
+      (assert (not (cl-some (lambda (x) (cdr x)) columns))))))
 
 
 ;; Interval helper functions
@@ -1298,8 +1325,9 @@ events are not displayed is shown."
     (calfw-blocks--wrap-text width word-break)
     (buffer-string)))
 
-(defun calfw-blocks--to-lines (text max-lines)
-  "Wrap TEXT to a fixed WIDTH without breaking words."
+(defun calfw-blocks--to-lines (text max-lines help-text)
+  "Wrap TEXT to a fixed WIDTH without breaking words.
+Add HELP-TEXT in case the string is truncated."
   ;; Doesn't work with \n in text
   (let ((lines (string-split text "\n"))
         last-line ellips)
@@ -1312,7 +1340,12 @@ events are not displayed is shown."
               last-line
               0
               (- (length last-line) (length ellips)))
-             ellips)))
+             ellips))
+      (cl-loop for l in lines do
+               (add-text-properties
+                0 (length l)
+                (list 'help-echo help-text)
+                l)))
     lines))
 
 (defun calfw-blocks--remove-unicode-chars (str)
@@ -1345,7 +1378,8 @@ is added at the beginning of a block to indicate it is the beginning."
                        (calfw-blocks--wrap-string (calfw-blocks--remove-unicode-chars
                                                    block-string)
                                                   block-width-adjusted)
-                       (- block-height 1)))
+                       (- block-height 1)
+                       (substring-no-properties block-string)))
         (rendered-block '())
          (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string))
          (source-clr (cfw:source-color (get-text-property 0 'cfw:source block-string))))
