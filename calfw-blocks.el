@@ -879,13 +879,13 @@ Fix erroneous width in last line, should be fixed upstream in calfw."
 (defun calfw-blocks-time-column (time-width cell-height)
   (let* ((num-hours (floor (/ cell-height calfw-blocks-lines-per-hour)))
         (start-hour (car calfw-blocks-earliest-visible-time))
-        (start-minute (cadr calfw-blocks-earliest-visible-time))
-        (times-lst (mapcar (lambda (x) (list (mod (+ x start-hour) 24) start-minute))
-                           (number-sequence 0 (1- num-hours)))))
-    (mapcan (lambda (x) (append (list (calfw-blocks-format-time x))
-                       (mapcar (lambda (x) (make-string time-width ? ))
-                               (number-sequence 0 (- calfw-blocks-lines-per-hour 2)))))
-     times-lst)))
+         (start-minute (cadr calfw-blocks-earliest-visible-time)))
+    (cl-loop for x from 0 below num-hours
+             collect
+             (calfw-blocks-format-time
+              (list (mod (+ x start-hour) 24) start-minute))
+             append
+             (make-list (- calfw-blocks-lines-per-hour 1) nil))))
 
 (defun calfw-blocks-render-columns (day-columns param)
   "[internal] Concatenate rows on the days into a string of a physical line.
@@ -954,10 +954,16 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
           with time-columns = (calfw-blocks-time-column time-width cell-height)
              for i from 1 below cell-height
-             for final-line = (apply #'concat
+             for time = (prog1 (car time-columns)
+                          (setq time-columns (cdr time-columns)))
+             for curVL = (if time
+                             (propertize VL 'face 'calfw-blocks-overline)
+                           VL)
+             for final-line
+             = (apply #'concat
                                      (append
                                       (list
-                                       (let ((time (nth (1- i) time-columns)))
+                        (progn
                                          (when (= (1- i) curr-time-linum)
                                            (setq time (calfw-blocks-format-time
                                                        (let ((curr-time (decode-time (current-time))))
@@ -965,10 +971,8 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                                (nth 1 curr-time)))))
                                            (add-face-text-property
                                             0 (length time) 'cfw:face-today-title
-                                            t time)
-                                           )
-                                         (cfw:render-left time-width time))
-                                       )
+                             t time))
+                          (cfw:render-left time-width time)))
           (cl-loop for day-rows in breaked-day-columns
                 for date = (car day-rows)
                 for row = (nth i day-rows)
@@ -987,20 +991,12 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                                       (propertize "@"
                                                                   'face
                                                                   'cfw:face-today-title)
-                                                    ;; TODO: Better way to display
-                                                    ;; grids!
-                                                    (if (eq 'calfw-blocks-overline
-                                                            (get-text-property 0 'face row))
-                                                        (propertize VL 'face
-                                                        'calfw-blocks-overline)
-                                                        VL
-                                                      VL)
-                                                    ))
+                                     curVL))
                  (cfw:tp
                   (cfw:render-separator
                    (cfw:render-left cell-width (and row (format "%s" row))))
                   'cfw:date date)))
-                                      (list VL EOL)))
+                       (list curVL EOL)))
              do
              (when (and calfw-blocks-show-current-time-indicator
                         (= (1- i) curr-time-linum))
@@ -1443,7 +1439,9 @@ is added at the beginning of a block to indicate it is the beginning."
             (current-line-lst '()))
         (if (or (not split-blocks) (< i (caar split-blocks)))
             (if make-time-grid-line
-                (push (propertize (make-string cell-width ? ) 'face 'calfw-blocks-overline) current-line-lst)
+                (push (propertize (make-string cell-width ? )
+                                  'face 'calfw-blocks-overline)
+                      current-line-lst)
               (push (make-string cell-width ? ) current-line-lst))
           (while (and split-blocks (= i (caar split-blocks)))
             (push (cadr (pop split-blocks)) current-line-lst))
@@ -1663,6 +1661,7 @@ If TEXT does not have a range, return nil."
 
 (advice-add 'cfw:open-calendar-buffer
             :after 'calfw-blocks-scroll-to-initial-visible-time)
+
 (advice-add 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
 (advice-add 'cfw:cp-update
