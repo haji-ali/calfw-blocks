@@ -1,24 +1,37 @@
-;;; calfw-blocks.el -*- lexical-binding: t; -*-
-;;
-;; Copyright (C) 2022 null
-;;
+;;; calfw-blocks.el --- A block view for calfw  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2023, ml729 and Al Haji-Ali
+
 ;; Author: ml729
-;; Maintainer: ml729 <null>
-;; Created: July 06, 2022
-;; Version: 0.0.1
-;; Package-Requires: ((emacs "25.4"))
+;; Maintainer: Al Haji-Ali <abdo.haji.ali at gmail.com>
+;; Created: Author
+;; Version: 0.0.2
+;; Package-Requires: ((emacs "28.1"))
+;; Homepage: https://github.com/haji-ali/maccalfw
+;; Keywords: calendar
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ;;
-;; This file is not part of GNU Emacs.
 ;;
 ;;; Commentary:
 ;;
-;;
+;; This package provides several views for calfw that show events as blocks.
 ;;
 ;;; Code:
 
 (require 'calfw)
 (require 'calfw-org)
-;; (require 'posframe)
 
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
@@ -116,8 +129,7 @@ Displays full name if nil.")
          (num-cell-char
           (/ cell-width (char-width cfw:fchar-horizontal-line)))
          (num-date-cell-char
-          (/ date-cell-width (char-width cfw:fchar-horizontal-line)))
-         )
+          (/ date-cell-width (char-width cfw:fchar-horizontal-line))))
     (append
      param
      `((eol . ,EOL) (vl . ,(cfw:rt (make-string 1 cfw:fchar-vertical-line) 'cfw:face-grid))
@@ -128,8 +140,7 @@ Displays full name if nil.")
                           (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
                           (make-string num-date-cell-char cfw:fchar-horizontal-line)
                           (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
-                          (make-string num-cell-char cfw:fchar-horizontal-line)
-                          ))
+                          (make-string num-cell-char cfw:fchar-horizontal-line)))
                    (make-string 1 cfw:fchar-top-right-corner) EOL)
                   'cfw:face-grid))
        (cline . ,(cfw:rt
@@ -139,8 +150,7 @@ Displays full name if nil.")
                           (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
                           (make-string num-date-cell-char cfw:fchar-horizontal-line)
                           (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
-                          (make-string num-cell-char cfw:fchar-horizontal-line)
-                          ))
+                          (make-string num-cell-char cfw:fchar-horizontal-line)))
                    (make-string 1 cfw:fchar-right-junction) EOL) 'cfw:face-grid))))))
 
 (defun calfw-blocks-view-nday-transpose-week-calc-param (n dest)
@@ -700,8 +710,7 @@ command, such as `cfw:navi-previous(next)-month-command' and
                      (funcall title-func date week-day hday)
                      (if num-label (concat " " num-label))
                      (if hday (concat " " (cfw:rt (substring hday 0)
-                                                  'cfw:face-holiday)))
-                     )
+                                                     'cfw:face-holiday))))
          collect
          (cons date (cons (cons tday ant) prs-contents)))
    param))
@@ -1057,7 +1066,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                collect
                (append rows (make-list (- col-count filled-cells) "")))
       ;; Assert that all columns are moved into rows
-      (assert (not (cl-some (lambda (x) (cdr x)) columns))))))
+      (cl-assert (not (cl-some (lambda (x) (cdr x)) columns))))))
 
 
 ;; Interval helper functions
@@ -1157,8 +1166,7 @@ corresponding to the elements of the group."
             (when (and (not (member j i-intersects-indices))
                        (calfw-blocks--interval-intersect? i-interval j-interval))
               (setcdr i-group (reverse (cons j (reverse (cdr i-group)))))
-              (setcar i-group (calfw-blocks--interval-intersection (car i-group) j-interval))
-              )))
+              (setcar i-group (calfw-blocks--interval-intersection (car i-group) j-interval)))))
         (if (not (and i-intersects-indices
                       (= 1 (length (cdr i-group)))))
             (push i-group groups)))
@@ -1518,7 +1526,7 @@ is added at the beginning of a block to indicate it is the beginning."
        (when wind
          (set-window-start wind prev-window-start)))))
 
-(defun calfw-blocks-cfw:cp-update (component &optional initial-date)
+(defun calfw-blocks--cfw-cp-update (component &optional initial-date)
   "[internal] Clear and re-draw the component content."
   (let* ((buf (cfw:cp-get-buffer component))
          (dest (cfw:component-dest component)))
@@ -1556,7 +1564,7 @@ is added at the beginning of a block to indicate it is the beginning."
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
 ;;; calfw-org
-(defun calfw-blocks-cfw:org-get-timerange (text)
+(defun calfw-blocks--cfw-org-get-timerange (text)
   "Return a range object (begin end text).
 If TEXT does not have a range, return nil."
   ;; TODO: This is exactly the same as `cfw:org-get-timerange' except that
@@ -1576,8 +1584,7 @@ If TEXT does not have a range, return nil."
                                  (seconds-to-time (* 3600 24 (- total-days 1))))))
                  ;; (unless (= cur-day total-days)
                  (list (calendar-gregorian-from-absolute (time-to-days start-date))
-                       (calendar-gregorian-from-absolute (time-to-days end-date)) text)))
-           ))))
+                       (calendar-gregorian-from-absolute (time-to-days end-date)) text)))))))
 
 (defun calfw-blocks-org-summary-format (item)
   "Version of cfw:org-summary-format that adds time data needed to draw blocks."
@@ -1677,11 +1684,11 @@ If TEXT does not have a range, return nil."
 (advice-add 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
 (advice-add 'cfw:cp-update
-            :override 'calfw-blocks-cfw:cp-update)
+            :override 'calfw-blocks--cfw-cp-update)
 
 ;;; calfw-org
 (advice-add 'cfw:org-get-timerange
-            :override 'calfw-blocks-cfw:org-get-timerange)
+            :override 'calfw-blocks--cfw-org-get-timerange)
 (setq cfw:org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
 
 (provide 'calfw-blocks)

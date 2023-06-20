@@ -1,6 +1,24 @@
 * calfw-blocks.el
 
-Visual time blocks and more for the [[https://github.com/kiwanami/emacs-calfw][Emacs Calendar Framework (calfw)]].
+Visual time blocks and more for the [[https://github.com/haji-ali/emacs-calfw][Emacs Calendar Framework (calfw)]].
+
+* Fork changelog
+
+The following features are implemented:
+
+- Using calendar colours instead of a rotating list of colors for events.
+- Using `cl-lib` functions.
+- Viewing current time indicator only when today is being shown.
+- Word wrapping text in events when possible.
+- Removed separate rows for dates, including them instead in the day-header.
+- Added a marker for the current day.
+- Implemented continuous blocks for all-day events.
+- Changed the grid rendering to use overlines.
+- Cleaned up some of the code, though this is definitely WIP.
+- Various fixes and linting (WIP).
+- TODO: checkdoc
+
+This fork must be installed with my fork of `calfw`, otherwise it will *not* work.
 
 * Screenshot
 Weekly block view:
@@ -79,7 +97,5 @@ Notable customization options:
 - ~calfw-blocks-default-event-length~: the length in hours of events with a start time but no end time; used to determine the size of the rendered block.
 - ~calfw-blocks-lines-per-hour~: how many lines each hour gets.
 - ~calfw-blocks-min-block-width~: the smallest width a block can be in characters (includes divider character). If there are too many concurrent events, some events are hidden so that all blocks are at least `calfw-blocks-min-block-width' characters wide.
-
-
 * License
 GNU General Public License v3.0 (GPLv3)
