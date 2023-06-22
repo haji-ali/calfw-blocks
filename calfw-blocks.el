@@ -58,7 +58,7 @@ Also used for events with a start time and no end time."
   :group 'calfw-blocks
   :type 'boolean)
 
-(defcustom calfw-blocks-render-multiday-events t
+(defcustom calfw-blocks-render-multiday-events 'cont
   "Whether to render (nonblock) multiday events.
 If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
@@ -114,7 +114,7 @@ Displays full name if nil.")
 
 ;; Faces
 (defface calfw-blocks-now-indicator
-  '((t (:background "#e0a3ff")))
+  '((t (:strike-through "red")))
   "Face for current time indicator."
   :group 'calfw-blocks)
 
