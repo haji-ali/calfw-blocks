@@ -95,6 +95,8 @@ Displays full name if nil.")
     "Basic face for overline."
   :group 'basic-faces)
 
+(defvar calfw-blocks-event-keymap nil)
+
 
 (defvar calfw-blocks-earliest-visible-time '(0 0)
   "Earliest visible time in a day as list (hours minutes).")
@@ -557,6 +559,12 @@ return an alist of rendering parameters."
     (insert (cfw:render-footer total-width (cfw:model-get-contents-sources model)))))
 
 
+(defun calfw-blocks-navi-goto-now ()
+  "Move the cursor to today."
+  (interactive)
+  (cfw:navi-goto-date (cfw:emacs-to-calendar (current-time)))
+  (text-property-search-forward 'cfw:current-time-marker t))
+
 (defun calfw-blocks-navi-next-nday-week-command (n)
   "Move the cursor forward NUM weeks. If NUM is nil, 1 is used.
 Moves backward if NUM is negative."
@@ -752,7 +760,9 @@ period-stack -> ((row-num . period) ... )"
     (cl-loop for (begin end event) in (cfw:k 'periods model)
           for content = (if (cfw:event-p event)
                             ;; (cfw:event-period-overview event)
+                            (propertize
                             (cfw:event-period-overview event)
+                             'cfw:event (cfw:event-data event))
                           event)
           for period = (list begin end content
                              (cfw:extract-text-props content 'face)
@@ -778,7 +788,8 @@ b is the minute."
                 (progn
                   (propertize
                    (cfw:event-overview event)
-                   'calfw-blocks-interval (calfw-blocks-get-time-interval event)))
+                   'calfw-blocks-interval (calfw-blocks-get-time-interval event)
+                   'cfw:event (cfw:event-data event)))
                 event))
           lst))
 
@@ -802,6 +813,7 @@ b is the minute."
                          'face (cons
                                 'calfw-blocks-overline
                                 (cfw:render-get-face-period content 'cfw:face-periods))
+                                     'keymap calfw-blocks-event-keymap
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                           'cfw:period t
                           'cfw:row-count (car p)
@@ -829,6 +841,7 @@ b is the minute."
                                                     (cfw:render-get-face-period content 'cfw:face-periods))
                                              'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
                                              'cfw:period t
+                                             'keymap calfw-blocks-event-keymap
                                              'cfw:cell-span len
                                              'help-echo (substring-no-properties content)
                                              'cfw:row-count (car p)
@@ -854,6 +867,7 @@ b is the minute."
                                 'calfw-blocks-overline
                                 (cfw:render-get-face-period content 'cfw:face-periods))
                           'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
+                                       'keymap calfw-blocks-event-keymap
                           'cfw:period t
                                        'help-echo (substring-no-properties content)
                           'cfw:row-count (car p)
@@ -1010,7 +1024,8 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                         (equal date today))
                                                       (propertize "@"
                                                                   'face
-                                                                  'cfw:face-today-title)
+                                                   'cfw:face-today-title
+                                                   'cfw:current-time-marker t)
                                      curVL))
                  (cfw:tp
                   (cfw:render-separator
@@ -1367,6 +1382,7 @@ Add HELP-TEXT in case the string is truncated."
 (defun calfw-blocks--remove-unicode-chars (str)
   "Remove any Unicode characters from INPUT-STRING."
   (cl-loop
+   ;; TODO: Make sure that str maintains its properties.
    for char across str
    if (and (>= char 16) (<= char 127))
    concat (string char)))
@@ -1391,14 +1407,17 @@ is added at the beginning of a block to indicate it is the beginning."
         (is-beginning-of-cell (= (car block-horizontal-pos) 0))
         (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
          (block-lines (calfw-blocks--to-lines
-                       (calfw-blocks--wrap-string (calfw-blocks--remove-unicode-chars
-                                                   block-string)
+                       (calfw-blocks--wrap-string
+                        ;; TODO: Figure out a way to remove unicode characters
+                        ;; while preserving text properties
+                        ;;
+                        ;; (calfw-blocks--remove-unicode-chars block-string)
+                        block-string
                                                   block-width-adjusted)
                        (- block-height 1)
                        (substring-no-properties block-string)))
         (rendered-block '())
-         (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string))
-         (source-clr (cfw:source-color (get-text-property 0 'cfw:source block-string))))
+         (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string)))
     (dolist (i (number-sequence 0 (- block-height 1)))
       (push (list (+ (car block-vertical-pos) i)
                   (propertize (concat ;;TODO some parts of the string won't inherit the properties of the event
@@ -1414,6 +1433,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                ;; (when (not end-of-cell) "|")
                                ;; (when (not end-of-cell) " " );;(if (= i 0) "*" "|"))
                                )
+                              'cfw:event (get-text-property 0 'cfw:event block-string)
+                              'keymap calfw-blocks-event-keymap
                               'face
                               (seq-filter
                                'identity ;; filter out nil's
@@ -1494,9 +1515,6 @@ is added at the beginning of a block to indicate it is the beginning."
 
 (defun calfw-blocks--grid-line (n)
   (propertize (make-string n ? ) 'face 'calfw-blocks-overline))
-
-(defun calfw-blocks-superimpose-face (text face)
-  (propertize text 'face (list (get-text-property 0 'face text) face)))
 
 (defun calfw-blocks-dest-ol-today-set (dest)
   "[internal] Put a highlight face on today."
