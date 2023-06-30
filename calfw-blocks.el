@@ -297,68 +297,120 @@ return an alist of rendering parameters."
           +1
         -1))))
 
-(defun calfw-blocks-navi-goto-next-event ()
-  "Move the cursor forward NUM of views. If NUM is nil, 1 is used.
-Moves backward if NUM is negative."
-  (interactive)
+(defun calfw-blocks-navi-goto-next-event (dir)
+  "Move the cursor forward to next event if visible.
+DIR has to be either 1 or -1 (for previous instead of next)."
+  (interactive (list 1))
   ;; Get current date and time from cursor.
   ;; Search for next block with cfw:event
   ;; If have the same date and future start time, stop
   ;; Otherwise continue until next.
   ;; If none found, then allow for future day.
+  (cl-flet ((col-at-pt (lambda (pos) (save-excursion (goto-char pos)
+                                                     (current-column)))))
+    (let* ((search-fn (if (> dir 0)
+                          #'next-single-property-change
+                        #'previous-single-property-change))
+           (reverse-search-fn (if (< dir 0)
+                                  #'next-single-property-change
+                                #'previous-single-property-change))
+           (cmp-fn (if (> dir 0) #'> #'<))
+           (time-fn (if (> dir 0) #'cfw:event-start-time #'cfw:event-end-time))
+           (component (cfw:cp-get-component))
+           (dest (cfw:component-dest component))
+           ;;;
+           (cur-pt (point))
+           (point-ev (get-text-property cur-pt 'cfw:event))
+           (point-date (when point-ev
+                         (cfw:event-start-date point-ev)))
+           (search-for-periods (get-text-property cur-pt 'cfw:period))
+           ;;
+           (continue t)
+           cur-ev point-col)
+      ;; First move back to beginning of event
+      (when (and point-ev
+                 (eq point-ev (get-text-property (- cur-pt dir) 'cfw:event)))
+        ;; TODO: Don't do this in period events.
+        ;; Just go back to beginning of day
+        (setq cur-pt (funcall reverse-search-fn cur-pt 'cfw:event))
+        (if (< dir 1)
+            ;; Go back a smidge to have the same event
+            (setq cur-pt (1- cur-pt))))
+      (unless point-date
+        ;; TODO: Instead of this, just jump to first non nil
+        ;; date from point.
+        (while (and cur-pt
+                    (null
+                     (setq point-date
+                           (get-text-property cur-pt 'cfw:date))))
+          (setq cur-pt (funcall search-fn cur-pt 'cfw:date))))
 
-  (let* ((component (cfw:cp-get-component))
-         (dest (cfw:component-dest component))
-         (point-ev (get-text-property (point) 'cfw:event))
-         (point-date (if point-ev
-                         (cfw:event-start-date point-ev)
-                       (cfw:cursor-to-nearest-date)))
-         (cur-ev point-ev)
-         (continue t)
-         (cur-pt (point))
-         point-col)
-    ;; First move back to beginning of event
-    (when (and point-ev
-               (eq point-ev (get-text-property (1- (point)) 'cfw:event)))
-      ;; TODO: Don't do this in period events.
-      ;; Just go back to beginning of day
-      (goto-char (previous-single-property-change (point) 'cfw:event)))
-    (setq point-col (current-column))
-
-    (while continue
-      (if (setq cur-pt
-                (next-single-property-change
-                 cur-pt 'cfw:event))
+      (when cur-pt
+        (setq point-col (col-at-pt cur-pt))
+        (while continue
+          (if (setq cur-pt
+                    (funcall search-fn cur-pt 'cfw:event))
+              (when (and (setq cur-ev (get-text-property cur-pt 'cfw:event))
+                         (not (eq point-ev cur-ev))
+                         (equal
+                          point-date
+                          (cfw:event-start-date cur-ev))
+                         (eq (get-text-property cur-pt 'cfw:period)
+                             search-for-periods))
+                (when (or
+                       search-for-periods
+                       (null point-ev)
+                       (funcall cmp-fn
+                                (setq time-cmp (calfw-blocks-compare-time
+                                                (funcall time-fn point-ev)
+                                                (funcall time-fn cur-ev)))
+                                0) ;; POINT is before CUR
+                       (and (eq time-cmp 0)
+                            (funcall cmp-fn (col-at-pt cur-pt) point-col)))
+                  ;; Future and different event on the same day
+                  ;; stop search.
+                  (setq continue nil)))
+            (setq point-date (cfw:date-after point-date dir))
+            (if (cfw:cp-displayed-date-p component point-date)
+                (progn
+                  (setq cur-pt (calfw-blocks-find-by-date dest point-date dir)
+                        point-ev nil
+                        point-col (col-at-pt cur-pt))
+                  ;; If already on event, then stop search
+                  (when (get-text-property cur-pt 'cfw:event)
+                    (setq continue nil)))
+              ;; Next day is not visible, stop search
+              (setq continue nil
+                    cur-pt nil)))))
+      ;; If we have a pt, move to it
+      (if cur-pt
           (progn
             (goto-char cur-pt)
-            (when (and (setq cur-ev (get-text-property cur-pt 'cfw:event))
-                       (not (eq point-ev cur-ev))
-                       (equal
-                        point-date
-                        (cfw:event-start-date cur-ev)))
-              (when (or
-                     (null point-ev)
-                     (> (setq time-cmp (calfw-blocks-compare-time
-                                        (cfw:event-start-time point-ev)
-                                        (cfw:event-start-time cur-ev)))
-                        0) ;; POINT is before CUR
-                     (and (eq time-cmp 0)
-                          (> (current-column) point-col)))
-                ;; Future and different event on the same day
-                ;; stop search.
-                (setq continue nil))))
-        (setq point-date (cfw:date-after point-date 1))
-        (if (cfw:cp-displayed-date-p component point-date)
-            (progn
-              (cfw:cp-move-cursor dest point-date t)
-              (setq cur-pt (point)
-                    point-ev nil
-                    point-col (current-column))
-              ;; If already on event, then stop search
-              (setq continue (null (get-text-property (point) 'cfw:event))))
-          ;; Next day is not visible, stop search
-          (setq continue nil)))))
-  (recenter))
+            (recenter))
+        (user-error "No more events in view")))))
+
+(defun calfw-blocks-find-by-date (dest date dir)
+  "[internal] Return a point where the text property `cfw:date'
+is equal to DATE in the current calender view. If DATE is not
+found in the current view, return nil."
+  (cl-loop
+   with rev = (< dir 0)
+   with pos = (funcall (if rev 'cfw:dest-point-max 'cfw:dest-point-min) dest)
+   with end = (funcall (if rev 'cfw:dest-point-min 'cfw:dest-point-max) dest)
+   for next = (funcall
+               (if rev 'previous-single-property-change
+                 'next-single-property-change)
+               pos 'cfw:date nil end)
+   for text-date = (and next (cfw:cursor-to-date next))
+   while next do
+   (if (and text-date (equal date text-date))
+       (cl-return next))
+   (setq pos next)))
+
+(defun calfw-blocks-navi-goto-previous-event ()
+  "Move the cursor forward to previous event if visible."
+  (interactive)
+  (calfw-blocks-navi-goto-next-event -1))
 
 (defun calfw-blocks-navi-next-view-command (&optional num)
   "Move the cursor forward NUM of views. If NUM is nil, 1 is used.
@@ -379,7 +431,8 @@ Moves forward if NUM is negative."
   "Move the cursor to today."
   (interactive)
   (cfw:navi-goto-date (cfw:emacs-to-calendar (current-time)))
-  (text-property-search-forward 'cfw:current-time-marker t))
+  (text-property-search-forward 'cfw:current-time-marker t)
+  (recenter))
 
 (defun calfw-blocks-navi-next-nday-week-command (n)
   "Move the cursor forward NUM weeks. If NUM is nil, 1 is used.
@@ -594,86 +647,74 @@ b is the minute."
 
 (defun calfw-blocks-render-periods (date week-day periods-stack cell-width model)
   "[internal] This function translates PERIOD-STACK to display content on the DATE."
-  (seq-filter 'identity
-  (mapcar (lambda (p)
-            (let* ((content (nth 2 (cadr p)))
-                  (props (nth 3 (cadr p)))
-                  (interval (nth 4 (cadr p)))
-                  (begintime (if interval (calfw-blocks-format-time (car interval))))
-                  (endtime (if interval (calfw-blocks-format-time (cdr interval)))))
-          (if (or interval (get-text-property 0 'calfw-blocks-interval content)
-                  (not calfw-blocks-render-multiday-events))
-              (apply 'propertize
-                     (if (and calfw-blocks-display-end-times
-                              begintime
-                              (string= (substring content 0 5) begintime))
-                         (concat begintime "-" endtime (substring content 5))
-                       content)
-                         'face (cons
-                                'calfw-blocks-overline
-                                (cfw:render-get-face-period content 'cfw:face-periods))
-                                     'keymap calfw-blocks-event-keymap
-                          'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
-                          'cfw:period t
-                          'cfw:row-count (car p)
+  (seq-filter
+   'identity
+   (mapcar (lambda (p)
+             (let* ((content (nth 2 (cadr p)))
+                    (face (cfw:render-get-face-period content 'cfw:face-periods))
+                    (props (append
+                            (list
+                             'keymap calfw-blocks-event-keymap
+                             'cfw:period t
+                             'cfw:row-count (car p)
+                             'face (cons
+                                    'calfw-blocks-overline
+                                    face)
+                             'font-lock-face face)
+                            (nth 3 (cadr p))))
+                    (interval (nth 4 (cadr p)))
+                    (begintime (if interval (calfw-blocks-format-time (car interval))))
+                    (endtime (if interval (calfw-blocks-format-time (cdr interval)))))
+               (if (or interval (get-text-property 0 'calfw-blocks-interval content)
+                       (not calfw-blocks-render-multiday-events))
+                   (apply 'propertize
+                          (if (and calfw-blocks-display-end-times
+                                   begintime
+                                   (string= (substring content 0 5) begintime))
+                              (concat begintime "-" endtime (substring content 5))
+                            content)
                           'calfw-blocks-interval interval
                           props)
-                            (if (eq calfw-blocks-render-multiday-events 'cont)
-                                (let* ((begin (nth 0 (cadr p)))
-                                       (begin-date (cfw:k 'begin-date model))
-                                       (beginp (or (equal date begin)
-                                                   (and
-                                                    (equal date begin-date)
-                                                    (< (calendar-absolute-from-gregorian begin)
-                                                       (calendar-absolute-from-gregorian begin-date))))))
-                                  (when beginp
-                                    (let* ((end (nth 1 (cadr p)))
-                                           (end-date (cfw:k 'end-date model))
-                                           (len (1+ (min (cfw:days-diff begin end)
-                                                         (cfw:days-diff begin end-date)
-                                                         (cfw:days-diff begin-date end)
-                                                         (cfw:days-diff begin-date end-date)))))
-                                      (apply 'propertize
-                                             (cfw:render-left (+ (1- len) (* len cell-width)) content ? )
-                                             'face (cons
-                                                    'calfw-blocks-overline
-                                                    (cfw:render-get-face-period content 'cfw:face-periods))
-                                             'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
-                                             'cfw:period t
-                                             'keymap calfw-blocks-event-keymap
-                                             'cfw:cell-span len
-                                             'help-echo (substring-no-properties content)
-                                             'cfw:row-count (car p)
-                                             props))))
-            (let* ((begin (nth 0 (cadr p)))
-                   (end (nth 1 (cadr p)))
-                   (beginp (equal date begin))
-                   (endp (equal date end))
-                                     (width (- cell-width
-                                               (if beginp (length cfw:fstring-period-start) 0)
-                                               (if endp (length cfw:fstring-period-end) 0)))
-                   (title (calfw-blocks-render-periods-title
-                               date week-day begin end content
-                               (- cell-width
-                                  (if beginp 1 0)
-                                  (if endp 1 0))
-                               model)))
-                                (apply 'propertize (concat
-                                                    (when beginp cfw:fstring-period-start)
-                                             (cfw:render-left width title ? )
-                                  (when endp cfw:fstring-period-end))
-                         'face (cons
-                                'calfw-blocks-overline
-                                (cfw:render-get-face-period content 'cfw:face-periods))
-                          'font-lock-face (cfw:render-get-face-period content 'cfw:face-periods)
-                                       'keymap calfw-blocks-event-keymap
-                          'cfw:period t
-                                       'help-echo (substring-no-properties content)
-                          'cfw:row-count (car p)
-                                       props))))))
-          (seq-sort
-           (lambda (a b) (< (car a) (car b)))
-                       periods-stack))))
+                 (if (eq calfw-blocks-render-multiday-events 'cont)
+                     (let* ((begin (nth 0 (cadr p)))
+                            (begin-date (cfw:k 'begin-date model))
+                            (beginp (or (equal date begin)
+                                        (and
+                                         (equal date begin-date)
+                                         (< (calendar-absolute-from-gregorian begin)
+                                            (calendar-absolute-from-gregorian begin-date))))))
+                       (when beginp
+                         (let* ((end (nth 1 (cadr p)))
+                                (end-date (cfw:k 'end-date model))
+                                (len (1+ (min (cfw:days-diff begin end)
+                                              (cfw:days-diff begin end-date)
+                                              (cfw:days-diff begin-date end)
+                                              (cfw:days-diff begin-date end-date)))))
+                           (apply 'propertize
+                                  (cfw:render-left (+ (1- len) (* len cell-width)) content ? )
+                                  'cfw:cell-span len
+                                  props))))
+                   (let* ((begin (nth 0 (cadr p)))
+                          (end (nth 1 (cadr p)))
+                          (beginp (equal date begin))
+                          (endp (equal date end))
+                          (width (- cell-width
+                                    (if beginp (length cfw:fstring-period-start) 0)
+                                    (if endp (length cfw:fstring-period-end) 0)))
+                          (title (calfw-blocks-render-periods-title
+                                  date week-day begin end content
+                                  (- cell-width
+                                     (if beginp 1 0)
+                                     (if endp 1 0))
+                                  model)))
+                     (apply 'propertize (concat
+                                         (when beginp cfw:fstring-period-start)
+                                         (cfw:render-left width title ? )
+                                         (when endp cfw:fstring-period-end))
+                            props))))))
+           (seq-sort
+            (lambda (a b) (< (car a) (car b)))
+            periods-stack))))
 
 (defun calfw-blocks-render-periods-title (date week-day begin end content cell-width model)
   "[internal] Return a title string.
@@ -1101,9 +1142,10 @@ events are not displayed is shown."
             props))))
 
 
-(defun calfw-blocks--wrap-text (width &optional word-break)
+(defun calfw-blocks--wrap-text (width max-lines &optional word-break)
   (goto-char (point-min))
-  (while (< (point) (point-max))
+  (while (and (< (point) (point-max))
+              (> max-lines 1))
     (let* ((forward-by (min width (- (point-max) (point))))
            (counter forward-by)
            (word-break (or word-break "-"))
@@ -1152,31 +1194,41 @@ events are not displayed is shown."
           ;; hard break
           (goto-char (1- prev-point))
           (insert word-break))
-        (insert ?\n)))))
+        (insert ?\n)
+        (setq max-lines (1- max-lines))))))
 
-(defun calfw-blocks--wrap-string (text width &optional word-break)
+(defun calfw-blocks--wrap-string (text width max-lines &optional word-break)
   "Wrap TEXT to a fixed WIDTH without breaking words."
   ;; Doesn't work with \n in text
   (with-temp-buffer
     (insert text)
-    (calfw-blocks--wrap-text width word-break)
+    (calfw-blocks--wrap-text width max-lines word-break)
     (buffer-string)))
 
-(defun calfw-blocks--to-lines (text max-lines help-text)
+(defun calfw-blocks--to-lines (text width max-lines help-text)
   "Wrap TEXT to a fixed WIDTH without breaking words.
 Add HELP-TEXT in case the string is truncated."
   ;; Doesn't work with \n in text
-  (let ((lines (string-split text "\n"))
-        last-line ellips)
-    (when (> (length lines) max-lines)
-      (setq ellips (truncate-string-ellipsis)
-            last-line (nth max-lines lines))
-      (setf (nth max-lines lines)
+  (let* ((lines (string-split text "\n"))
+         (line-n (1- (min max-lines (length lines))))
+         (last-line (nth line-n lines))
+         ellips)
+    (when (or
+           (> (length lines) max-lines)
+           (> (length last-line) width))
+      (setq ellips (truncate-string-ellipsis))
+      (add-text-properties
+       0 (length ellips)
+       (text-properties-at (1- (length last-line))
+                           last-line)
+       ellips)
+      (setf (nth line-n lines)
             (concat
              (substring
               last-line
               0
-              (- (length last-line) (length ellips)))
+              (- (min (length last-line) width)
+                 (length ellips)))
              ellips))
       (cl-loop for l in lines do
                (add-text-properties
@@ -1220,8 +1272,10 @@ is added at the beginning of a block to indicate it is the beginning."
                         ;;
                         ;; (calfw-blocks--remove-unicode-chars block-string)
                         block-string
-                        block-width-adjusted)
-                       (- block-height 1)
+                        block-width-adjusted
+                        block-height)
+                       block-width-adjusted
+                       block-height
                        (substring-no-properties block-string)))
          (rendered-block '())
          (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string)))
