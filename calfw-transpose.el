@@ -32,15 +32,15 @@
 
 (require 'calfw-blocks)
 
-(defcustom calfw-blocks-transpose-date-width 17
+(defcustom calfw-transpose-date-width 17
   "Width (in characters) of date cell in transpose views.")
 
-(defcustom calfw-blocks-transpose-day-name-length nil
+(defcustom calfw-transpose-day-name-length nil
   "Number of characters of day of week to display in transpose views.
 Displays full name if nil.")
 
 
-(defun calfw-blocks-render-append-transpose-parts (param)
+(defun calfw-transpose-render-append-parts (param)
   "[internal] Append rendering parts to PARAM and return a new list."
   (let* ((EOL "\n")
          (date-cell-width (cfw:k 'date-cell-width param))
@@ -73,7 +73,7 @@ Displays full name if nil.")
                           (make-string num-cell-char cfw:fchar-horizontal-line)))
                    (make-string 1 cfw:fchar-right-junction) EOL) 'cfw:face-grid))))))
 
-(defun calfw-blocks-view-nday-transpose-week-calc-param (n dest)
+(defun calfw-transpose-view-nday-week-calc-param (n dest)
   "[internal] Calculate cell size from the reference size and
 return an alist of rendering parameters."
   (let*
@@ -83,7 +83,7 @@ return an alist of rendering parameters."
        ;; title 2, toolbar 1, header 2, hline 2, footer 1, margin 2 => 10
        (win-height (max 15 (- (cfw:dest-height dest) 10)))
        (junctions-width (* (char-width cfw:fchar-junction) 5))
-       (date-cell-width calfw-blocks-transpose-date-width)
+       (date-cell-width calfw-transpose-date-width)
        (cell-width (/ (- win-width junctions-width (* 2 date-cell-width)) 2))
        (cell-height (* 5 win-height)) ;; every cell has essentially unlimited height
        (total-width (+ (* date-cell-width 2) (* cell-width 2) junctions-width)))
@@ -95,11 +95,11 @@ return an alist of rendering parameters."
       (time-width . ,time-width)
       (time-hline . ,time-hline))))
 
-(defun calfw-blocks-view-transpose-nday-week (n component &optional model)
+(defun calfw-transpose-view-nday-week (n component &optional model)
   "[internal] Render weekly calendar view."
   (let* ((dest (cfw:component-dest component))
-         (param (calfw-blocks-render-append-transpose-parts
-                 (calfw-blocks-view-nday-transpose-week-calc-param n dest)))
+         (param (calfw-transpose-render-append-parts
+                 (calfw-transpose-view-nday-week-calc-param n dest)))
          (total-width (cfw:k 'total-width param))
          (time-width (cfw:k 'time-width param))
          (EOL (cfw:k 'eol param))
@@ -128,7 +128,7 @@ return an alist of rendering parameters."
      EOL)
     (insert cline)
     ;; contents
-    (calfw-blocks-render-calendar-cells-transpose-weeks
+    (calfw-transpose-render-calendar-cells-weeks
      model param
      (lambda (date week-day hday)
        (cfw:rt (format "%s" (calendar-extract-day date))
@@ -138,18 +138,18 @@ return an alist of rendering parameters."
     ;; footer
     (insert (cfw:render-footer total-width (cfw:model-get-contents-sources model)))))
 
-(defun calfw-blocks-render-calendar-cells-transpose-weeks (model param title-func)
+(defun calfw-transpose-render-calendar-cells-weeks (model param title-func)
   "[internal] Insert calendar cells for week based views."
   (let ((all-days (apply 'nconc (cfw:k 'weeks model))))
-    (calfw-blocks-render-calendar-cells-transpose-days
+    (calfw-transpose-render-calendar-cells-days
      model param title-func all-days
      'calfw-blocks-render-content t)))
 
 
-(defun calfw-blocks-render-calendar-cells-transpose-days (model param title-func &optional
+(defun calfw-transpose-render-calendar-cells-days (model param title-func &optional
                                              days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
-  (calfw-blocks-render-columns-transpose
+  (calfw-transpose-render-columns
    (cl-loop with cell-width      = (cfw:k 'cell-width param)
          with days            = (or days (cfw:k 'days model))
          with content-fun     = (or content-fun
@@ -172,7 +172,7 @@ return an alist of rendering parameters."
                                       (cfw:model-get-contents-by-date date model))
                              sorter)
          for prs-contents = (cfw:render-rows-prop
-                             (append (calfw-blocks-render-transpose-periods-days
+                             (append (calfw-transpose-render-periods-days
                                       date raw-periods cell-width)
                                      (mapcar 'cfw:render-default-content-face
                                              raw-contents)))
@@ -192,7 +192,7 @@ return an alist of rendering parameters."
          (cons date (cons (cons tday (cons ant hday-str)) prs-contents)))
    param))
 
-(defun calfw-blocks-render-transpose-periods-days (date periods-stack cell-width)
+(defun calfw-transpose-render-periods-days (date periods-stack cell-width)
   "[internal] Insert period texts."
   (when periods-stack
     (let ((stack (sort (copy-sequence periods-stack)
@@ -217,7 +217,7 @@ return an alist of rendering parameters."
                 (cfw:render-default-content-face title)
               "")))))
 
-(defun calfw-blocks-render-columns-transpose (day-columns param)
+(defun calfw-transpose-render-columns (day-columns param)
   "[internal] This function concatenates each rows on the days into a string of a physical line.
 DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
   (let* ((date-cell-width  (cfw:k 'date-cell-width  param))
@@ -251,7 +251,7 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
                                    (cfw:tp
                                     (cfw:render-default-content-face
                                      (concat
-                                      (substring dayname 0 calfw-blocks-transpose-day-name-length)
+                                      (substring dayname 0 calfw-transpose-day-name-length)
                                       " "
                                       tday)
                                      'cfw:face-day-title)
@@ -286,49 +286,49 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
 
 
 
-(defun calfw-blocks-view-transpose-8-day (component)
-  (calfw-blocks-view-transpose-nday-week 8 component))
+(defun calfw-transpose-view-8-day (component)
+  (calfw-transpose-view-nday-week 8 component))
 
-(defun calfw-blocks-view-transpose-10-day (component)
-  (calfw-blocks-view-transpose-nday-week 10 component))
+(defun calfw-transpose-view-10-day (component)
+  (calfw-transpose-view-nday-week 10 component))
 
-(defun calfw-blocks-view-transpose-12-day (component)
-  (calfw-blocks-view-transpose-nday-week 12 component))
+(defun calfw-transpose-view-12-day (component)
+  (calfw-transpose-view-nday-week 12 component))
 
-(defun calfw-blocks-view-transpose-14-day (component)
-  (calfw-blocks-view-transpose-nday-week 14 component))
+(defun calfw-transpose-view-14-day (component)
+  (calfw-transpose-view-nday-week 14 component))
 
-(defun calfw-blocks-view-transpose-two-weeks (component)
-  (calfw-blocks-view-transpose-nday-week 14 component
+(defun calfw-transpose-view-two-weeks (component)
+  (calfw-transpose-view-nday-week 14 component
                                          (cfw:view-two-weeks-model
                                           (cfw:component-model component))))
 
 
-(defun calfw-blocks-change-view-transpose-two-weeks ()
+(defun calfw-transpose-change-view-two-weeks ()
   "change-view-month"
   (interactive)
   (when (cfw:cp-get-component)
     (cfw:cp-set-view (cfw:cp-get-component) 'transpose-two-weeks)))
 
-(defun calfw-blocks-change-view-transpose-14-day ()
+(defun calfw-transpose-change-view-14-day ()
   "change-view-month"
   (interactive)
   (when (cfw:cp-get-component)
     (cfw:cp-set-view (cfw:cp-get-component) 'transpose-14-day)))
 
-(defun calfw-blocks-change-view-transpose-12-day ()
+(defun calfw-transpose-change-view-12-day ()
   "change-view-month"
   (interactive)
   (when (cfw:cp-get-component)
     (cfw:cp-set-view (cfw:cp-get-component) 'transpose-12-day)))
 
-(defun calfw-blocks-change-view-transpose-10-day ()
+(defun calfw-transpose-change-view-10-day ()
   "change-view-month"
   (interactive)
   (when (cfw:cp-get-component)
     (cfw:cp-set-view (cfw:cp-get-component) 'transpose-10-day)))
 
-(defun calfw-blocks-change-view-transpose-8-day ()
+(defun calfw-transpose-change-view-8-day ()
   "change-view-month"
   (interactive)
   (when (cfw:cp-get-component)
@@ -339,11 +339,11 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
  cfw:cp-dipatch-funcs
  (append
   cfw:cp-dipatch-funcs
-  '((transpose-8-day   .  calfw-blocks-view-transpose-8-day)
-    (transpose-10-day  .  calfw-blocks-view-transpose-10-day)
-    (transpose-12-day  .  calfw-blocks-view-transpose-12-day)
-    (transpose-14-day  .  calfw-blocks-view-transpose-14-day)
-    (transpose-two-weeks    . calfw-blocks-view-transpose-two-weeks))))
+  '((transpose-8-day   .  calfw-transpose-view-8-day)
+    (transpose-10-day  .  calfw-transpose-view-10-day)
+    (transpose-12-day  .  calfw-transpose-view-12-day)
+    (transpose-14-day  .  calfw-transpose-view-14-day)
+    (transpose-two-weeks    . calfw-transpose-view-two-weeks))))
 
 
 (provide 'calfw-transpose)
