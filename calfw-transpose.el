@@ -33,11 +33,15 @@
 (require 'calfw-blocks)
 
 (defcustom calfw-transpose-date-width 17
-  "Width (in characters) of date cell in transpose views.")
+  "Width (in characters) of date cell in transpose views."
+  :type 'number
+  :group 'calfw-transpose)
 
 (defcustom calfw-transpose-day-name-length nil
   "Number of characters of day of week to display in transpose views.
-Displays full name if nil.")
+Displays full name if nil."
+  :type 'number
+  :group 'calfw-transpose)
 
 
 (defun calfw-transpose-render-append-parts (param)

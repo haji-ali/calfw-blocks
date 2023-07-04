@@ -81,7 +81,9 @@ If \\='cont then render them without splitting into cells."
   :type 'boolean)
 
 (defcustom calfw-blocks-display-end-times t
-  "Whether or not to display end times in blocks.")
+  "Whether or not to display end times in blocks."
+  :group 'calfw-blocks
+  :type 'boolean)
 
 (defface calfw-blocks-overline
   '((t :overline t))
@@ -1497,8 +1499,8 @@ If TEXT does not have a range, return nil."
          (let ((date-string  (match-string 1 dotime))
                (extra (cfw:org-tp text 'extra)))
            (if (and extra (string-match "(\\([0-9]+\\)/\\([0-9]+\\)): " extra))
-               (let* ((cur-day (string-to-number
-                                (match-string 1 extra)))
+               (let* (;; (cur-day (string-to-number
+                      ;;           (match-string 1 extra)))
                       (total-days (string-to-number
                                    (match-string 2 extra)))
                       (start-date (org-read-date nil t date-string))
@@ -1511,20 +1513,14 @@ If TEXT does not have a range, return nil."
 
 (defun calfw-blocks-org-summary-format (item)
   "Version of cfw:org-summary-format that adds time data needed to draw blocks."
-  (let* ((time (cfw:org-tp item 'time))
-         (time-of-day (cfw:org-tp item 'time-of-day))
+  (let* ((time-of-day (cfw:org-tp item 'time-of-day))
          (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
          (duration (cfw:org-tp item 'duration))
          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
                                                        (+ (nth 1 start-time) (mod duration 60)))
                      start-time))
-         (date (cfw:org-tp item 'date))
          (time-str (and time-of-day
                         (format "%02i:%02i " (/ time-of-day 100) (% time-of-day 100))))
-         (end-time-str (and end-time
-                            (format "%02i:%02i " (nth 0 end-time) (nth 1 end-time))))
-         (category (cfw:org-tp item 'org-category))
-         (tags (cfw:org-tp item 'tags))
          (marker (cfw:org-tp item 'org-marker))
          (buffer (and marker (marker-buffer marker)))
          (text (cfw:org-extract-summary item))
@@ -1540,9 +1536,9 @@ If TEXT does not have a range, return nil."
     ;;; act for org link
     ;;; ------------------------------------------------------------------------
     (setq text (replace-regexp-in-string "%[0-9A-F]\\{2\\}" " " text))
-    (if (string-match org-bracket-link-regexp text)
-        (let* ((desc (if (match-end 3) (org-match-string-no-properties 3 text)))
-               (link (org-link-unescape (org-match-string-no-properties 1 text)))
+    (if (string-match org-link-bracket-re text)
+        (let* ((desc (if (match-end 3) (match-string-no-properties 3 text)))
+               (link (org-link-unescape (match-string-no-properties 1 text)))
                (help (concat "LINK: " link))
                (link-props (list
                             'face 'org-link
@@ -1575,9 +1571,7 @@ If TEXT does not have a range, return nil."
 ;;          (duration (cfw:org-tp item 'duration))
 ;;          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
 ;;                                                        (+ (nth 1 start-time) (mod duration 60)))
-;;                      start-time))
-;;          (end-time-str (and end-time
-;;                             (format "%02i:%02i " (nth 0 end-time) (nth 1 end-time)))))
+;;                      start-time)))
 ;;     (propertize
 ;;      (funcall old-fn item)
 ;;      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
