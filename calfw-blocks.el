@@ -246,23 +246,25 @@ return an alist of rendering parameters."
            for i in (cfw:k 'headers model)
            with VL = (cfw:k 'vl param) with cell-width = (cfw:k 'cell-width param)
            concat
-           (concat VL (cfw:render-center
-                       cell-width
-                       (concat
-                        (cfw:rt
-                         (calendar-day-name date t)
-                         (cfw:render-get-week-face i 'cfw:face-header))
-                        " "
-                        (cfw:rt
-                         (format "%s%d"
-                                 (if (= (calendar-extract-month date)
-                                        (calendar-extract-month begin-date))
-                                     ""
-                                   (format "%d/" (calendar-extract-month date)))
-                                 (calendar-extract-day date))
-                         (if (equal (calendar-current-date) date)
-                             'cfw:face-today-title
-                           (cfw:render-get-week-face i 'cfw:face-header))))))
+           (concat VL (cfw:tp
+                       (cfw:render-center
+                        cell-width
+                        (concat
+                         (cfw:rt
+                          (calendar-day-name date t)
+                          (cfw:render-get-week-face i 'cfw:face-header))
+                         " "
+                         (cfw:rt
+                          (format "%s%d"
+                                  (if (= (calendar-extract-month date)
+                                         (calendar-extract-month begin-date))
+                                      ""
+                                    (format "%d/" (calendar-extract-month date)))
+                                  (calendar-extract-day date))
+                          (if (equal (calendar-current-date) date)
+                              'cfw:face-today-title
+                            (cfw:render-get-week-face i 'cfw:face-header)))))
+                       'cfw:date date))
            do
            (setq date  (cfw:date-after date 1))))
 
