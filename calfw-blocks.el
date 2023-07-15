@@ -113,6 +113,16 @@ If \\='cont then render them without splitting into cells."
   "Face for cancelled events."
   :group 'calfw-blocks)
 
+(defface calfw-blocks-time-column
+  '((t))
+  "Face for time column. Also used to identify the column."
+  :group 'calfw-blocks)
+
+(defface calfw-blocks-time-column-now
+  '((t (:inherit cfw:face-today-title)))
+  "Face for time column. Also used to identify the column."
+  :group 'calfw-blocks)
+
 
 
 ;; Block views
@@ -795,8 +805,10 @@ Fix erroneous width in last line, should be fixed upstream in calfw."
          (start-minute (cadr calfw-blocks-earliest-visible-time)))
     (cl-loop for x from 0 below num-hours
              collect
-             (calfw-blocks-format-time
-              (list (mod (+ x start-hour) 24) start-minute))
+             (propertize
+              (calfw-blocks-format-time
+               (list (mod (+ x start-hour) 24) start-minute))
+              'face 'calfw-blocks-time-column)
              append
              (make-list (- calfw-blocks-lines-per-hour 1) nil))))
 
@@ -897,7 +909,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                           (list (nth 2 curr-time)
                                                 (nth 1 curr-time)))))
                             (add-face-text-property
-                             0 (length time) 'cfw:face-today-title
+                             0 (length time) 'calfw-blocks-time-column-now
                              t time))
                           (cfw:render-left time-width time)))
                        (cl-loop for day-rows in breaked-day-columns
