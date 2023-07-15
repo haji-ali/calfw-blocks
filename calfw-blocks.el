@@ -1193,6 +1193,38 @@ events are not displayed is shown."
          (time-float (+ curr-hour (/ curr-min 60.0))))
     (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour (- time-float start-time)))))
 
+(defun calfw-blocks-point-to-time (&optional end-time)
+  "Return the timestamp corresponding to point.
+If in time row, return (MONTH DAY YEAR HOUR MINUTE). If not in a
+time row, return (MONTH DAY YEAR). Return nil if no date on point."
+  (let* ((line-start (save-excursion
+                       (min
+                        (progn (goto-char (point-min))
+                               (text-property-search-forward
+                                'face 'calfw-blocks-time-column)
+                               (line-number-at-pos))
+                        (progn (goto-char (point-min))
+                               (text-property-search-forward
+                                'face 'calfw-blocks-time-column-now)
+                               (line-number-at-pos)))))
+         (cur-line (and line-start
+                        (- (line-number-at-pos) line-start)))
+         (date (cfw:cursor-to-date))
+         (min-per-line (/ 60 calfw-blocks-lines-per-hour))
+         (starting-min (+ (* 60 (car calfw-blocks-earliest-visible-time))
+                          (cadr calfw-blocks-earliest-visible-time)))
+         (minutes (if (> cur-line 0)
+                      (+ starting-min
+                         (* min-per-line
+                            (+ (if end-time 1 0) cur-line)))
+                    0)))
+    (when date
+      (if (>= cur-line 0)
+          (append date
+                  (list (/ minutes 60)
+                        (% minutes 60)))
+        date))))
+
 (defun calfw-blocks-generalized-substring (s start end props)
   (cond ((<= end (length s)) (substring s start end))
         ((< start (length s)) (concat (substring s start (length s))
