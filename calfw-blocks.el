@@ -108,6 +108,11 @@ If \\='cont then render them without splitting into cells."
   "Face for current time indicator."
   :group 'calfw-blocks)
 
+(defface calfw-blocks-cancelled-event
+  '((t (:strike-through t)))
+  "Face for cancelled events."
+  :group 'calfw-blocks)
+
 
 
 ;; Block views
@@ -1290,6 +1295,11 @@ Add HELP-TEXT in case the string is truncated."
    if (and (>= char 16) (<= char 127))
    concat (string char)))
 
+(defun calfw-blocks--status-face (text)
+  (let* ((event (get-text-property 0 'cfw:event text)))
+    (cl-case (cfw:event-status event)
+      (cancelled 'calfw-blocks-cancelled-event))))
+
 (defun calfw-blocks-split-single-block (block cell-width)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
@@ -1351,7 +1361,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                  'cfw:face-default-content)
                                 (list
                                  (when is-exceeded-indicator 'italic)
-                                 (when (= i 0) 'calfw-blocks-overline))))
+                                 (when (= i 0) 'calfw-blocks-overline)
+                                 (calfw-blocks--status-face block-string))))
                               'calfw-blocks-horizontal-pos block-horizontal-pos))
             rendered-block)
       (setq block-lines (cdr block-lines)))
