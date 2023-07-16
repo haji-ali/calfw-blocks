@@ -1527,7 +1527,7 @@ is added at the beginning of a block to indicate it is the beginning."
   (declare (indent 1) (debug t))
   `(let* ((wind (get-buffer-window buf))
           (prev-point (point))
-          (prev-window-start (when wind (window-start))))
+          (prev-window-start (when wind (window-start wind))))
      (unwind-protect
          (progn
            ,@body)
