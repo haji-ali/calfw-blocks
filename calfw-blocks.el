@@ -1224,6 +1224,34 @@ time row, return (MONTH DAY YEAR). Return nil if no date on point."
                         (% minutes 60)))
         date))))
 
+(defun calfw-blocks-region-to-time ()
+  "Return time corresponding to region.
+Return a list \\=(START END ALL-DAY-P)
+where START is the encoded time corresponding to
+`region-beginning', END is encoded time corresponding to
+`region-end' or nil if region is inactive and ALL-DAY-P is t if
+the region is not in the time section of the calendar."
+  (save-excursion
+    (cl-destructuring-bind
+        (reg-begin &optional reg-end)
+        (if (region-active-p) (list (region-beginning) (region-end))
+          (list (point)))
+      (let* ((time-start (progn (goto-char reg-begin)
+                                (calfw-blocks-point-to-time)))
+             (time-end (when reg-end
+                         (progn (goto-char reg-end)
+                                (calfw-blocks-point-to-time t))))
+             (all-day-p (or (<= (length time-start) 3)
+                            (and time-end (<= (length time-end) 3)))))
+        (list (cl-destructuring-bind
+                  (month day year &optional (hour 0) (minute 0)) time-start
+                (encode-time (list 0 minute hour day month year)))
+              (when time-end
+                (cl-destructuring-bind
+                    (month day year &optional (hour 0) (minute 0)) time-end
+                  (encode-time (list 0 minute hour day month year))))
+              all-day-p)))))
+
 (defun calfw-blocks-generalized-substring (s start end props)
   (cond ((<= end (length s)) (substring s start end))
         ((< start (length s)) (concat (substring s start (length s))
