@@ -349,5 +349,4 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
     (transpose-14-day  .  calfw-transpose-view-14-day)
     (transpose-two-weeks    . calfw-transpose-view-two-weeks))))
 
-
 (provide 'calfw-transpose)

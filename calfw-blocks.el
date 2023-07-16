@@ -31,7 +31,6 @@
 ;;; Code:
 
 (require 'calfw)
-(require 'calfw-org)
 
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
@@ -1545,95 +1544,6 @@ is added at the beginning of a block to indicate it is the beginning."
         (scroll-up (floor (* calfw-blocks-lines-per-hour
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
-;;; calfw-org
-(defun calfw-blocks--cfw-org-get-timerange (text)
-  "Return a range object (begin end text).
-If TEXT does not have a range, return nil."
-  ;; TODO: This is exactly the same as `cfw:org-get-timerange' except that
-  ;; it fixed cur-day = 0
-  (let* ((dotime (cfw:org-tp text 'dotime)))
-    (and (stringp dotime) (string-match org-ts-regexp dotime)
-         (let ((date-string  (match-string 1 dotime))
-               (extra (cfw:org-tp text 'extra)))
-           (if (and extra (string-match "(\\([0-9]+\\)/\\([0-9]+\\)): " extra))
-               (let* (;; (cur-day (string-to-number
-                      ;;           (match-string 1 extra)))
-                      (total-days (string-to-number
-                                   (match-string 2 extra)))
-                      (start-date (org-read-date nil t date-string))
-                      (end-date (time-add
-                                 start-date
-                                 (seconds-to-time (* 3600 24 (- total-days 1))))))
-                 ;; (unless (= cur-day total-days)
-                 (list (calendar-gregorian-from-absolute (time-to-days start-date))
-                       (calendar-gregorian-from-absolute (time-to-days end-date)) text)))))))
-
-(defun calfw-blocks-org-summary-format (item)
-  "Version of cfw:org-summary-format that adds time data needed to draw blocks."
-  (let* ((time-of-day (cfw:org-tp item 'time-of-day))
-         (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
-         (duration (cfw:org-tp item 'duration))
-         (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
-                                                       (+ (nth 1 start-time) (mod duration 60)))
-                     start-time))
-         (time-str (and time-of-day
-                        (format "%02i:%02i " (/ time-of-day 100) (% time-of-day 100))))
-         (marker (cfw:org-tp item 'org-marker))
-         (buffer (and marker (marker-buffer marker)))
-         (text (cfw:org-extract-summary item))
-         (props (cfw:extract-text-props item 'face 'keymap))
-         (extra (cfw:org-tp item 'extra)))
-    (setq text (substring-no-properties text))
-    (when (and extra (string-match (concat "^" org-deadline-string ".*") extra))
-      (add-text-properties 0 (length text) (list 'face (org-agenda-deadline-face 1.0)) text))
-    (if org-todo-keywords-for-agenda
-        (when (string-match (concat "^[\t ]*\\<\\(" (mapconcat 'identity org-todo-keywords-for-agenda "\\|") "\\)\\>") text)
-          (add-text-properties (match-beginning 1) (match-end 1) (list 'face (org-get-todo-face (match-string 1 text))) text)))
-    ;;; ------------------------------------------------------------------------
-    ;;; act for org link
-    ;;; ------------------------------------------------------------------------
-    (setq text (replace-regexp-in-string "%[0-9A-F]\\{2\\}" " " text))
-    (if (string-match org-link-bracket-re text)
-        (let* ((desc (if (match-end 3) (match-string-no-properties 3 text)))
-               (link (org-link-unescape (match-string-no-properties 1 text)))
-               (help (concat "LINK: " link))
-               (link-props (list
-                            'face 'org-link
-                            'mouse-face 'highlight
-                            'help-echo help
-                            'org-link link)))
-          (if desc
-              (progn
-                (setq desc (apply 'propertize desc link-props))
-                (setq text (replace-match desc nil nil text)))
-            (setq link (apply 'propertize link link-props))
-            (setq text (replace-match link nil nil text)))))
-    (when time-str
-      (setq text (concat time-str text)))
-    (propertize
-     (apply 'propertize text props)
-     ;; include org filename
-     ;; (and buffer (concat " " (buffer-name buffer)))
-     'keymap cfw:org-text-keymap
-     ;; Delete the display property, since displaying images will break our
-     ;; table layout.
-     'display nil
-     'calfw-blocks-interval (if start-time (cons start-time end-time)))))
-
-;; TODO: This should be shorter than the previous function.
-;; (defun calfw-blocks-org-summary-format (old-fn item)
-;;   "Version of cfw:org-summary-format that adds time data needed to draw blocks."
-;;   (let* ((time-of-day (cfw:org-tp item 'time-of-day))
-;;          (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
-;;          (duration (cfw:org-tp item 'duration))
-;;          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
-;;                                                        (+ (nth 1 start-time) (mod duration 60)))
-;;                      start-time)))
-;;     (propertize
-;;      (funcall old-fn item)
-;;      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
-
-
 ;; TODO: This should be done once only
 (setq
  cfw:cp-dipatch-funcs
@@ -1652,13 +1562,9 @@ If TEXT does not have a range, return nil."
 
 (advice-add 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
+
 (advice-add 'cfw:cp-update
             :override 'calfw-blocks--cfw-cp-update)
-
-;;; calfw-org
-(advice-add 'cfw:org-get-timerange
-            :override 'calfw-blocks--cfw-org-get-timerange)
-(setq cfw:org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
 
 (provide 'calfw-blocks)
 ;;; calfw-blocks.el ends here
