@@ -1392,51 +1392,56 @@ is added at the beginning of a block to indicate it is the beginning."
          (end-of-cell (= (cadr block-horizontal-pos) cell-width))
          (is-beginning-of-cell (= (car block-horizontal-pos) 0))
          (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
-         (props (text-properties-at (1- (length block-string)) block-string))
+         (props (cl-copy-seq (text-properties-at (1- (length block-string)) block-string)))
          (block-lines (calfw-blocks--to-lines
                        (calfw-blocks--wrap-string
                         ;; TODO: Figure out a way to remove unicode characters
                         ;; while preserving text properties
                         ;;
                         ;; (calfw-blocks--remove-unicode-chars block-string)
-                        block-string
+                        (prog1
+                            block-string
+                          (add-face-text-property 0 (length block-string)
+                                                  (calfw-blocks--status-face
+                                                   block-string)
+                                                  t block-string))
                         block-width-adjusted
                         block-height)
                        block-width-adjusted
                        block-height
                        (substring-no-properties block-string)))
          (rendered-block '())
-         (is-exceeded-indicator (get-text-property 0 'calfw-blocks-exceeded-indicator block-string)))
+         (is-exceeded-indicator (get-text-property
+                                 0 'calfw-blocks-exceeded-indicator
+                                 block-string))
+         tmp)
     (dolist (i (number-sequence 0 (- block-height 1)))
       (push (list (+ (car block-vertical-pos) i)
-                  (propertize (concat ;;TODO some parts of the string won't inherit the properties of the event
-                               ;; might cause issues with org goto/navigation/etc?
-                               (when (not is-beginning-of-cell)
-                                 (apply 'propertize "|" props)) ;;(if (= i 0) "*" "|"))
-                               ;; (if (= i 0) ">")
-                               ;; (calfw-blocks-generalized-substring block-string (* i block-width-adjusted)
-                               ;;                                     (* (1+ i) block-width-adjusted))
-                               (calfw-blocks-generalized-substring
-                                (car block-lines) 0 block-width-adjusted
-                                props)
-                               ;; (- (* (1+ i) block-width-adjusted)
-                               ;;    (if (= i 0) 1 0)))
-                               ;; (when (not end-of-cell) "|")
-                               ;; (when (not end-of-cell) " " );;(if (= i 0) "*" "|"))
-                               )
-                              'keymap calfw-blocks-event-keymap
-                              'face
-                              (seq-filter
-                               'identity ;; filter out nil's
-                               (cons
-                                (cfw:render-get-face-content
-                                 block-string
-                                 'cfw:face-default-content)
-                                (list
-                                 (when is-exceeded-indicator 'italic)
-                                 (when (= i 0) 'calfw-blocks-overline)
-                                 (calfw-blocks--status-face block-string))))
-                              'calfw-blocks-horizontal-pos block-horizontal-pos))
+                  (prog1
+                      (setq tmp
+                            (propertize
+                             (concat
+                              ;;TODO some parts of the string won't inherit
+                              ;; the properties of the event might cause
+                              ;; issues with org goto/navigation/etc?
+                              (when (not is-beginning-of-cell)
+                                (apply 'propertize "|" props)) ;;(if (= i 0) "*" "|"))
+                              (calfw-blocks-generalized-substring
+                               (car block-lines) 0 block-width-adjusted
+                               props))
+                             'keymap calfw-blocks-event-keymap
+                             'calfw-blocks-horizontal-pos block-horizontal-pos))
+                    (add-face-text-property 0 (length tmp)
+                                            (cfw:render-get-face-content
+                                             block-string
+                                             'cfw:face-default-content)
+                                            t tmp)
+                    (when (= i 0)
+                      (add-face-text-property 0 (length tmp)
+                                              'calfw-blocks-overline t tmp))
+                    (when is-exceeded-indicator
+                      (add-face-text-property 0 (length tmp)
+                                              'italic t tmp))))
             rendered-block)
       (setq block-lines (cdr block-lines)))
     (reverse rendered-block)))
