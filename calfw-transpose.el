@@ -349,4 +349,14 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
     (transpose-14-day  .  calfw-transpose-view-14-day)
     (transpose-two-weeks    . calfw-transpose-view-two-weeks))))
 
+(setq
+ calfw-block-toolbar-views
+ '(("Day" . block-day)
+   ("3-Day" . block-3-day)
+   ("Week" . block-week)
+   ("Two Week" . two-weeks)
+   ("W^T" . transpose-8-day)
+   ("2W^T" . transpose-14-day)
+   ("Month" . month)))
+
 (provide 'calfw-transpose)
