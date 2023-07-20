@@ -1219,10 +1219,29 @@ the region is not in the time section of the calendar."
         (reg-begin &optional reg-end)
         (if (region-active-p) (list (region-beginning) (region-end))
           (list (point)))
-      (let* ((time-start (progn (goto-char reg-begin)
-                                (calfw-blocks-point-to-time)))
+      (let* ((time-start
+              (or (progn (goto-char reg-begin)
+                         (unless (cfw:cursor-to-date)
+                           ;; If not on date, go to next one
+                           (goto-char
+                            (or (next-single-property-change
+                                 (point)
+                                 'cfw:date
+                                 nil
+                                 (line-end-position))
+                                (point-max))))
+                         (calfw-blocks-point-to-time))
+                  (user-error "No date around point")))
              (time-end (when reg-end
                          (progn (goto-char reg-end)
+                                (unless (cfw:cursor-to-date)
+                                  (goto-char
+                                   ;; If not on date, go to previous one
+                                   (or (previous-single-property-change
+                                        (point)
+                                        'cfw:date
+                                        (line-beginning-position))
+                                       (point-min))))
                                 (calfw-blocks-point-to-time t))))
              (all-day-p (or (<= (length time-start) 3)
                             (and time-end (<= (length time-end) 3)))))
