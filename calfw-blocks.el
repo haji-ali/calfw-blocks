@@ -112,6 +112,11 @@ If \\='cont then render them without splitting into cells."
   "Face for cancelled events."
   :group 'calfw-blocks)
 
+(defface calfw-blocks-cancelled-event-bg
+  '((t (:foreground "#777a7d" :background "#393c41")))
+  "Face for cancelled events."
+  :group 'calfw-blocks)
+
 (defface calfw-blocks-time-column
   '((t))
   "Face for time column. Also used to identify the column."
@@ -569,6 +574,21 @@ Using this function to sort by start time first."
          0)
     (string-lessp x y)))
 
+(defun calfw-blocks-render-default-content-face (str &optional default-face)
+  "[internal] Put the default content face. If STR has some
+faces, the faces are remained."
+  (cl-loop for i from 0 below (length str)
+           with ret = (substring str 0)
+           with face = (or default-face
+                           (calfw-blocks--status-face str 'background)
+                           (cfw:render-get-face-content
+                            str 'cfw:face-default-content))
+           unless (get-text-property i 'face ret)
+           do
+           (put-text-property i (1+ i) 'face face ret)
+           (put-text-property i (1+ i) 'font-lock-face face ret)
+           finally return ret))
+
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
                                                       days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
@@ -601,7 +621,7 @@ Using this function to sort by start time first."
                                             date week-day raw-periods cell-width model)
                                          (calfw-blocks-render-periods-days
                                           date raw-periods cell-width))
-                                       (mapcar 'cfw:render-default-content-face
+                                       (mapcar 'calfw-blocks-render-default-content-face
                                                raw-contents))
             for num-label = (if prs-contents
                                 (format "(%s)"
@@ -1371,10 +1391,12 @@ Add HELP-TEXT in case the string is truncated."
    if (and (>= char 16) (<= char 127))
    concat (string char)))
 
-(defun calfw-blocks--status-face (text)
+(defun calfw-blocks--status-face (text &optional background)
   (let* ((event (get-text-property 0 'cfw:event text)))
     (cl-case (cfw:event-status event)
-      (cancelled 'calfw-blocks-cancelled-event))))
+      (cancelled (if background
+                     'calfw-blocks-cancelled-event-bg
+                   'calfw-blocks-cancelled-event)))))
 
 (defun calfw-blocks-split-single-block (block cell-width)
   "Split event BLOCK into lines of width CELL-WIDTH.
@@ -1409,7 +1431,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                                    block-string)
                                                   t block-string))
                         block-width-adjusted
-                        block-height)
+                        block-height
+                        (apply 'propertize "-" props))
                        block-width-adjusted
                        block-height
                        (substring-no-properties block-string)))
@@ -1434,11 +1457,11 @@ is added at the beginning of a block to indicate it is the beginning."
                                props))
                              'keymap calfw-blocks-event-keymap
                              'calfw-blocks-horizontal-pos block-horizontal-pos))
-                    (add-face-text-property 0 (length tmp)
-                                            (cfw:render-get-face-content
-                                             block-string
-                                             'cfw:face-default-content)
-                                            t tmp)
+                    ;; (add-face-text-property 0 (length tmp)
+                    ;;                         (cfw:render-get-face-content
+                    ;;                          block-string
+                    ;;                          'cfw:face-default-content)
+                    ;;                         t tmp)
                     (when (= i 0)
                       (add-face-text-property 0 (length tmp)
                                               'calfw-blocks-overline t tmp))
@@ -1580,7 +1603,6 @@ is added at the beginning of a block to indicate it is the beginning."
         (scroll-up (floor (* calfw-blocks-lines-per-hour
                              (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
 
-;; TODO: This should be done once only
 (dolist (dispatch '((block-week        .  calfw-blocks-view-block-week)
                     (block-day         .  calfw-blocks-view-block-day)
                     (block-2-day       .  calfw-blocks-view-block-2-day)
