@@ -490,6 +490,7 @@ Moves forward if NUM is negative."
   "Move the cursor to today."
   (interactive)
   (cfw:navi-goto-date (cfw:emacs-to-calendar (current-time)))
+  (goto-char (point-min))
   (text-property-search-forward 'cfw:current-time-marker t)
   (recenter))
 
