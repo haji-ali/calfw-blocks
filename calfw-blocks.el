@@ -393,7 +393,7 @@ DIR has to be either 1 or -1 (for previous instead of next)."
             (or point-date
                 (cdr (calfw-blocks--next-prop cur-pt 'cfw:date dir))))
 
-      (when cur-pt
+      (when (and point-date cur-pt)
         (setq point-col (col-at-pt cur-pt))
         (while continue
           (if (setq cur-pt
@@ -447,7 +447,8 @@ DIR has to be either 1 or -1 (for previous instead of next)."
                 (setq continue nil
                       cur-pt nil)))))))
       ;; If we have a pt, move to it
-      (if cur-pt
+      (if (and cur-pt
+               (get-text-property cur-pt 'cfw:event))
           (progn
             (goto-char cur-pt)
             (recenter))
