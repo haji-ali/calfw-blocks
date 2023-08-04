@@ -1588,6 +1588,19 @@ is added at the beginning of a block to indicate it is the beginning."
       (cfw:dest-after-update dest)
       (cfw:cp-fire-update-hooks component))))
 
+(defun calfw-blocks-get-displayed-events ()
+  "Return a list of displayed events in the current buffer.
+Each item in the list is a cons containing the first position the
+event appears and the cfw:event structure."
+  (let ((cur-pt (point-min))
+        evs)
+    (while (setq cur-pt
+                 (next-single-property-change cur-pt 'cfw:event))
+      (when (setq ev (get-text-property cur-pt 'cfw:event))
+        (unless (cl-member ev evs :key 'cdr)
+          (setq evs (append evs (list (cons cur-pt ev)))))))
+    evs))
+
 (cl-defun calfw-blocks-scroll-to-initial-visible-time (&key date buffer custom-map contents-sources annotation-sources view sorter)
   (when (string-match-p "block" (symbol-name view))
     (scroll-up (floor (* calfw-blocks-lines-per-hour
