@@ -193,7 +193,7 @@ return an alist of rendering parameters."
        (time-hline (make-string time-width ? ))
        (win-width (cfw:dest-width dest))
        ;; title 2, toolbar 1, header 2, hline 2, footer 1, margin 2 => 10
-       (win-height (max 15 (- (cfw:dest-height dest) 10)))
+       ;; (win-height (max 15 (- (cfw:dest-height dest) 10)))
        (junctions-width (* (char-width cfw:fchar-junction) (1+ n)))
        (cell-width  (cfw:round-cell-width
                      (max 5 (/ (- win-width junctions-width time-width) n))))
@@ -376,7 +376,7 @@ DIR has to be either 1 or -1 (for previous instead of next)."
            search-for-periods
            ;;
            (continue t)
-           cur-ev point-col)
+           time-cmp cur-ev point-col)
       ;; First move back to beginning of event
       (when-let (tmp (calfw-blocks--next-prop cur-pt 'cfw:event dir))
         (setq search-for-periods (get-text-property (car tmp) 'cfw:period)))
@@ -619,7 +619,7 @@ faces, the faces are remained."
                                 sorter)
             for prs-contents = (append (if do-weeks
                                            (calfw-blocks-render-periods
-                                            date week-day raw-periods cell-width model)
+                                            date raw-periods cell-width model)
                                          (calfw-blocks-render-periods-days
                                           date raw-periods cell-width))
                                        (mapcar 'calfw-blocks-render-default-content-face
@@ -645,7 +645,7 @@ Modified to not truncate events. TODO"
   (when periods-stack
     (let ((stack (sort (copy-sequence periods-stack)
                        (lambda (a b) (< (car a) (car b))))))
-      (cl-loop for (row (begin end content)) in stack
+      (cl-loop for (_ (begin end content)) in stack
                for beginp = (equal date begin)
                for endp = (equal date end)
                for width = (- cell-width 2)
@@ -708,7 +708,7 @@ b is the minute."
               event))
           lst))
 
-(defun calfw-blocks-render-periods (date week-day periods-stack cell-width model)
+(defun calfw-blocks-render-periods (date periods-stack cell-width model)
   "[internal] This function translates PERIOD-STACK to display content on the DATE."
   (seq-filter
    'identity
@@ -765,7 +765,7 @@ b is the minute."
                                     (if beginp (length cfw:fstring-period-start) 0)
                                     (if endp (length cfw:fstring-period-end) 0)))
                           (title (calfw-blocks-render-periods-title
-                                  date week-day begin end content
+                                  date begin end content
                                   (- cell-width
                                      (if beginp 1 0)
                                      (if endp 1 0))
@@ -779,14 +779,15 @@ b is the minute."
             (lambda (a b) (< (car a) (car b)))
             periods-stack))))
 
-(defun calfw-blocks-render-periods-title (date week-day begin end content cell-width model)
+(defun calfw-blocks-render-periods-title (date begin end content
+                                               cell-width model)
   "[internal] Return a title string.
 
 Fix erroneous width in last line, should be fixed upstream in calfw."
   (let* ((title-begin-abs
           (max (calendar-absolute-from-gregorian begin)
                (calendar-absolute-from-gregorian (cfw:k 'begin-date model))))
-         (title-begin (calendar-gregorian-from-absolute title-begin-abs))
+         ;;(title-begin (calendar-gregorian-from-absolute title-begin-abs))
          (num (- (calendar-absolute-from-gregorian date) title-begin-abs)))
     (when content
       (cl-loop with title = (substring content 0)
@@ -803,7 +804,7 @@ Fix erroneous width in last line, should be fixed upstream in calfw."
 (defun calfw-blocks-format-time (time-obj)
   (format "%02d:%02d" (car time-obj) (cadr time-obj)))
 
-(defun calfw-blocks-time-column (time-width cell-height)
+(defun calfw-blocks-time-column (cell-height)
   (let* ((num-hours (floor (/ cell-height calfw-blocks-lines-per-hour)))
          (start-hour (car calfw-blocks-earliest-visible-time))
          (start-minute (cadr calfw-blocks-earliest-visible-time)))
@@ -827,13 +828,14 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
          (EOL (cfw:k 'eol param))
          (VL (cfw:k 'vl param))
          (time-hline (cfw:k 'time-hline param))
-         (hline (concat time-hline (cfw:k 'hline param)))
+         ;;(hline (concat time-hline (cfw:k 'hline param)))
          (cline (concat time-hline (cfw:k 'cline param)))
          (earliest-date (caar day-columns))
-         (curr-time-linum (calfw-blocks--current-time-vertical-position)))
+         ;; (curr-time-linum (calfw-blocks--current-time-vertical-position))
+         )
     (cl-loop with breaked-all-day-columns =
              (cl-loop for day-rows in day-columns
-                      for (date ants . lines) = day-rows
+                      for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-all-day-events
                                   lines cell-width (1- cell-height))))
@@ -880,12 +882,12 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
 
     (cl-loop with breaked-day-columns =
              (cl-loop for day-rows in day-columns
-                      for (date ants . lines) = day-rows
+                      for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-event-blocks
                                   lines cell-width (1- cell-height))))
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
-             with time-columns = (calfw-blocks-time-column time-width cell-height)
+             with time-columns = (calfw-blocks-time-column cell-height)
              for i from 1 to cell-height
              for time = (prog1 (car time-columns)
                           (setq time-columns (cdr time-columns)))
@@ -1077,7 +1079,6 @@ corresponding to the elements of the group."
     (dotimes (i (length lines-lst))
       (let* ((i-interval (nth 1 (nth i lines-lst)))
              (i-intersects-indices '())
-             (in-prev-group nil)
              (i-group (cons i-interval (list i))))
         (dolist (g groups)
           (when (and (calfw-blocks--interval-intersect? (car g) i-interval)
@@ -1183,7 +1184,7 @@ events are not displayed is shown."
   "[inclusive, exclusive)"
   (let* ((float-interval (calfw-blocks--get-float-time-interval p))
          (start-time (calfw-blocks--time-pair-to-float calfw-blocks-earliest-visible-time))
-         (minutes-per-line (/ 60 calfw-blocks-lines-per-hour))
+         ;; (minutes-per-line (/ 60 calfw-blocks-lines-per-hour))
          (interval-start (car float-interval))
          (interval-end (if (= interval-start (cadr float-interval)) (+ calfw-blocks-default-event-length interval-start) (cadr float-interval))))
     (list (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour (- interval-start start-time)))
@@ -1399,7 +1400,7 @@ Add HELP-TEXT in case the string is truncated."
                      'calfw-blocks-cancelled-event-bg
                    'calfw-blocks-cancelled-event)))))
 
-(defun calfw-blocks-split-single-block (block cell-width)
+(defun calfw-blocks-split-single-block (block)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
 BLOCK is expected to contain elements of the form (event
@@ -1415,7 +1416,7 @@ is added at the beginning of a block to indicate it is the beginning."
          (block-horizontal-pos (caddr block))
          (block-width (- (cadr block-horizontal-pos) (car block-horizontal-pos)))
          (block-height (- (cadr block-vertical-pos) (car block-vertical-pos)))
-         (end-of-cell (= (cadr block-horizontal-pos) cell-width))
+         ;; (end-of-cell (= (cadr block-horizontal-pos) cell-width))
          (is-beginning-of-cell (= (car block-horizontal-pos) 0))
          (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
          (props (cl-copy-seq (text-properties-at (1- (length block-string)) block-string)))
@@ -1488,15 +1489,16 @@ is added at the beginning of a block to indicate it is the beginning."
   (let* ((interval-lines (seq-filter (lambda (line) (car (get-text-property 0 'calfw-blocks-interval
                                                                             line)))
                                      lines))
-         (all-day-lines (seq-filter (lambda (line) (not (car (get-text-property 0 'calfw-blocks-interval
-                                                                                line))))
-                                    lines))
+         ;; (all-day-lines (seq-filter (lambda (line) (not (car (get-text-property 0 'calfw-blocks-interval
+         ;;                                                                        line))))
+         ;;                            lines))
          (block-positions (calfw-blocks--get-block-positions interval-lines cell-width))
          (split-blocks (seq-sort (lambda (a b) (< (car a) (car b)))
-                                 (mapcan (lambda (bf) (calfw-blocks-split-single-block bf cell-width))
+                                 (mapcan (lambda (bf) (calfw-blocks-split-single-block bf))
                                          block-positions)))
          (rendered-lines '())
-         (curr-time-grid-line (calfw-blocks--current-time-vertical-position)))
+         ;; (curr-time-grid-line (calfw-blocks--current-time-vertical-position))
+         )
     (dolist (i (number-sequence 0 (1- cell-height)))
       (let ((make-time-grid-line (and calfw-blocks-show-time-grid
                                       (= (mod i calfw-blocks-lines-per-hour) 0)))
@@ -1555,7 +1557,11 @@ is added at the beginning of a block to indicate it is the beginning."
            (push overlay ols)))))
     (setf (cfw:dest-today-ol dest) ols)))
 
-(defmacro calfw-blocks-perserve-buffer-view (buf &rest body)
+(defmacro calfw-blocks-perserve-buffer-view (&rest body)
+  "Preserve view in current buffer before executing BODY.
+View includes the point, the scroll position. If
+`calfw-blocks-perserve-buffer-view' is bound and nil, then view
+is not perserved."
   (declare (indent 1) (debug t))
   `(let* ((wind (get-buffer-window buf))
           (prev-point (point))
@@ -1563,9 +1569,11 @@ is added at the beginning of a block to indicate it is the beginning."
      (unwind-protect
          (progn
            ,@body)
-       (goto-char prev-point)
-       (when wind
-         (set-window-start wind prev-window-start)))))
+       (when (or (not (boundp 'calfw-blocks-perserve-buffer-view))
+                 (bound-and-true-p 'calfw-blocks-perserve-buffer-view))
+         (goto-char prev-point)
+         (when wind
+           (set-window-start wind prev-window-start))))))
 
 (defun calfw-blocks--cfw-cp-update (component &optional initial-date)
   "[internal] Clear and re-draw the component content."
@@ -1575,7 +1583,7 @@ is added at the beginning of a block to indicate it is the beginning."
       (cfw:dest-before-update dest)
       (cfw:dest-ol-today-clear dest)
       (let* ((buffer-read-only nil))
-        (calfw-blocks-perserve-buffer-view buf
+        (calfw-blocks-perserve-buffer-view
           (cfw:dest-with-region dest
             (cfw:dest-clear dest)
             (funcall (cfw:cp-dispatch-view-impl
@@ -1602,10 +1610,12 @@ event appears and the cfw:event structure."
           (setq evs (append evs (list (cons cur-pt ev)))))))
     evs))
 
-(cl-defun calfw-blocks-scroll-to-initial-visible-time (&key date buffer custom-map contents-sources annotation-sources view sorter)
+(cl-defun calfw-blocks-scroll-to-initial-visible-time (&key view
+                                                            &allow-other-keys)
   (when (string-match-p "block" (symbol-name view))
     (scroll-up (floor (* calfw-blocks-lines-per-hour
-                         (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))
+                         (calfw-blocks--time-pair-to-float
+                          calfw-blocks-initial-visible-time))))))
 
 (cl-defun calfw-blocks-scroll-to-initial-visible-time-after-update (component)
   (let ((buf (cfw:cp-get-buffer component))
