@@ -1570,7 +1570,7 @@ is not perserved."
          (progn
            ,@body)
        (when (or (not (boundp 'calfw-blocks-perserve-buffer-view))
-                 (bound-and-true-p 'calfw-blocks-perserve-buffer-view))
+                 (bound-and-true-p calfw-blocks-perserve-buffer-view))
          (goto-char prev-point)
          (when wind
            (set-window-start wind prev-window-start))))))
