@@ -514,7 +514,7 @@ Moves forward if NUM is negative."
     (interactive "p")
     (cfw:navi-next-day-command (* (- n) (or num 1)))))
 
-(defvar calfw-block-toolbar-views
+(defvar calfw-blocks-toolbar-views
   '(("Day" . block-day)
     ("3-Day" . block-3-day)
     ("Week" . block-week)
@@ -536,7 +536,7 @@ command, such as `cfw:navi-previous(next)-month-command' and
          (toolbar-text
           (cfw:render-add-right
            width (concat sp prev sp next sp today sp)
-           (cl-loop for (title . view) in calfw-block-toolbar-views
+           (cl-loop for (title . view) in calfw-blocks-toolbar-views
                     for fn = (let ((view view)) ;; Enable lexical-binding
                                (lambda ()
                                  (interactive)
