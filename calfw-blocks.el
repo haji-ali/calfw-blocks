@@ -481,16 +481,35 @@ found in the current view, return nil."
   "Move the cursor forward NUM of views. If NUM is nil, 1 is used.
 Moves backward if NUM is negative."
   (interactive "p")
-  (cfw:navi-next-day-command (*
-                              calfw-blocks-days-per-view
-                              (or num 1))))
+  (calfw-blocks-perserve-buffer-view
+      (cfw:navi-next-day-command (* calfw-blocks-days-per-view
+                                    (or num 1)))))
 
 (defun calfw-blocks-navi-previous-view-command (&optional num)
   "Move the cursor back NUM of views. If NUM is nil, 1 is used.
 Moves forward if NUM is negative."
   (interactive "p")
-  (cfw:navi-next-day-command (* (- calfw-blocks-days-per-view)
-                                (or num 1))))
+  (calfw-blocks-perserve-buffer-view
+      (cfw:navi-next-day-command (* (- calfw-blocks-days-per-view)
+                                    (or num 1)))))
+
+(defun calfw-blocks--cfw-refresh-calendar-buffer (no-resize)
+  "Clear the calendar and render again.
+With prefix arg NO-RESIZE, don't fit calendar to window size."
+  (interactive "P")
+  (calfw-blocks-perserve-buffer-view
+      (let ((cp (cfw:cp-get-component)))
+        (when cp
+          (unless no-resize
+            (cfw:cp-resize cp (window-width) (window-height)))
+          (cl-loop for s in (cfw:cp-get-contents-sources cp t)
+                   for f = (cfw:source-update s)
+                   if f do (funcall f))
+          (cl-loop for s in (cfw:cp-get-annotation-sources cp)
+                   for f = (cfw:source-update s)
+                   if f do (funcall f))
+          (cfw:cp-update cp)))))
+
 
 (defun calfw-blocks-navi-goto-now ()
   "Move the cursor to today."
@@ -1563,17 +1582,19 @@ View includes the point, the scroll position. If
 `calfw-blocks-perserve-buffer-view' is bound and nil, then view
 is not perserved."
   (declare (indent 1) (debug t))
-  `(let* ((wind (get-buffer-window buf))
+  `(let* ((wind (get-buffer-window (current-buffer)))
           (prev-point (point))
           (prev-window-start (when wind (window-start wind))))
      (unwind-protect
          (progn
            ,@body)
-       (when (or (not (boundp 'calfw-blocks-perserve-buffer-view))
-                 (bound-and-true-p calfw-blocks-perserve-buffer-view))
-         (goto-char prev-point)
-         (when wind
-           (set-window-start wind prev-window-start))))))
+       (goto-char prev-point)
+       (when wind
+         (set-window-start wind prev-window-start)))))
+
+(defun calfw-blocks-perserve-buffer-view-advice (old-fn &rest args)
+  (calfw-blocks-perserve-buffer-view
+      (apply old-fn args)))
 
 (defun calfw-blocks--cfw-cp-update (component &optional initial-date)
   "[internal] Clear and re-draw the component content."
@@ -1583,12 +1604,11 @@ is not perserved."
       (cfw:dest-before-update dest)
       (cfw:dest-ol-today-clear dest)
       (let* ((buffer-read-only nil))
-        (calfw-blocks-perserve-buffer-view
-          (cfw:dest-with-region dest
-            (cfw:dest-clear dest)
-            (funcall (cfw:cp-dispatch-view-impl
-                      (cfw:component-view component))
-                     component))))
+        (cfw:dest-with-region dest
+          (cfw:dest-clear dest)
+          (funcall (cfw:cp-dispatch-view-impl
+                    (cfw:component-view component))
+                   component)))
       (if (eq (cfw:component-view component) 'block-week)
           (calfw-blocks-dest-ol-today-set dest)
         (when cfw:highlight-today (cfw:dest-ol-today-set dest)))
@@ -1644,6 +1664,15 @@ event appears and the cfw:event structure."
 
 (advice-add 'cfw:cp-update
             :override 'calfw-blocks--cfw-cp-update)
+
+(advice-add 'cfw:refresh-calendar-buffer
+            :override 'calfw-blocks--cfw-refresh-calendar-buffer)
+
+(dolist (fn '(cfw:navi-next-month-command
+              cfw:navi-previous-month-command
+              cfw:refresh-calendar-buffer))
+  (advice-add fn :around
+              #'calfw-blocks-perserve-buffer-view-advice))
 
 (provide 'calfw-blocks)
 ;;; calfw-blocks.el ends here
