@@ -1249,6 +1249,25 @@ time row, return (MONTH DAY YEAR). Return nil if no date on point."
                         (% minutes 60)))
         date))))
 
+(defun calfw-blocks-time-to-line-number (hour minute)
+  "Return the line number corresponding to hour/minute."
+  (let* ((line-start (save-excursion
+                       (min
+                        (progn (goto-char (point-min))
+                               (text-property-search-forward
+                                'face 'calfw-blocks-time-column)
+                               (line-number-at-pos))
+                        (progn (goto-char (point-min))
+                               (text-property-search-forward
+                                'face 'calfw-blocks-time-column-now)
+                               (line-number-at-pos)))))
+         (min-per-line (/ 60 calfw-blocks-lines-per-hour))
+         (starting-min (+ (* 60 (car calfw-blocks-earliest-visible-time))
+                          (cadr calfw-blocks-earliest-visible-time)))
+         (minutes (+ (* hour 60) minute)))
+    (+ line-start
+       (floor (/ minutes min-per-line)))))
+
 (defun calfw-blocks-region-to-time ()
   "Return time corresponding to region.
 Return a list \\=(START END ALL-DAY-P)
