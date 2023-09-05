@@ -477,6 +477,26 @@ found in the current view, return nil."
   (interactive)
   (calfw-blocks-navi-goto-next-event -1))
 
+(defmacro calfw-blocks-perserve-buffer-view (&rest body)
+  "Preserve view in current buffer before executing BODY.
+View includes the point, the scroll position. If
+`calfw-blocks-perserve-buffer-view' is bound and nil, then view
+is not perserved."
+  (declare (indent 1) (debug t))
+  `(let* ((wind (get-buffer-window (current-buffer)))
+          (prev-point (point))
+          (prev-window-start (when wind (window-start wind))))
+     (unwind-protect
+         (progn
+           ,@body)
+       (goto-char prev-point)
+       (when wind
+         (set-window-start wind prev-window-start)))))
+
+(defun calfw-blocks-perserve-buffer-view-advice (old-fn &rest args)
+  (calfw-blocks-perserve-buffer-view
+      (apply old-fn args)))
+
 (defun calfw-blocks-navi-next-view-command (&optional num)
   "Move the cursor forward NUM of views. If NUM is nil, 1 is used.
 Moves backward if NUM is negative."
@@ -1594,26 +1614,6 @@ is added at the beginning of a block to indicate it is the beginning."
                             'cfw:face-today-title))
            (push overlay ols)))))
     (setf (cfw:dest-today-ol dest) ols)))
-
-(defmacro calfw-blocks-perserve-buffer-view (&rest body)
-  "Preserve view in current buffer before executing BODY.
-View includes the point, the scroll position. If
-`calfw-blocks-perserve-buffer-view' is bound and nil, then view
-is not perserved."
-  (declare (indent 1) (debug t))
-  `(let* ((wind (get-buffer-window (current-buffer)))
-          (prev-point (point))
-          (prev-window-start (when wind (window-start wind))))
-     (unwind-protect
-         (progn
-           ,@body)
-       (goto-char prev-point)
-       (when wind
-         (set-window-start wind prev-window-start)))))
-
-(defun calfw-blocks-perserve-buffer-view-advice (old-fn &rest args)
-  (calfw-blocks-perserve-buffer-view
-      (apply old-fn args)))
 
 (defun calfw-blocks--cfw-cp-update (component &optional initial-date)
   "[internal] Clear and re-draw the component content."
