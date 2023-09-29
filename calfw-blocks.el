@@ -1010,7 +1010,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                              if cols
                              collect
                              (let* ((col (car cols))
-                                    (on-row (eq i
+                                    (on-row (>= i
                                                 (or (get-text-property
                                                      0 'cfw:row-count col)
                                                     i)))
