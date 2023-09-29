@@ -993,7 +993,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
     (insert cline)))
 
 (defun calfw-blocks--pad-and-transpose (max-len columns)
-  "Returns the columns as rows, padded with space when needed"
+  "Return the columns as rows, padded with space when needed"
   (let* ((col-count (length columns)))
     (prog1
         (cl-loop for i from 0 below max-len  ;; Loop over rows
@@ -1282,8 +1282,8 @@ time row, return (MONTH DAY YEAR). Return nil if no date on point."
                                 'face 'calfw-blocks-time-column-now)
                                (line-number-at-pos)))))
          (min-per-line (/ 60 calfw-blocks-lines-per-hour))
-         (starting-min (+ (* 60 (car calfw-blocks-earliest-visible-time))
-                          (cadr calfw-blocks-earliest-visible-time)))
+         ;; (starting-min (+ (* 60 (car calfw-blocks-earliest-visible-time))
+         ;;                  (cadr calfw-blocks-earliest-visible-time)))
          (minutes (+ (* hour 60) minute)))
     (+ line-start
        (floor (/ minutes min-per-line)))))
@@ -1641,7 +1641,7 @@ is added at the beginning of a block to indicate it is the beginning."
 Each item in the list is a cons containing the first position the
 event appears and the cfw:event structure."
   (let ((cur-pt (point-min))
-        evs)
+        ev evs)
     (while (setq cur-pt
                  (next-single-property-change cur-pt 'cfw:event))
       (when (setq ev (get-text-property cur-pt 'cfw:event))

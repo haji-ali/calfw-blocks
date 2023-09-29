@@ -49,7 +49,7 @@ Displays full name if nil."
   (let* ((EOL "\n")
          (date-cell-width (cfw:k 'date-cell-width param))
          (cell-width (cfw:k 'cell-width param))
-         (columns (cfw:k 'columns param))
+         ;; (columns (cfw:k 'columns param))
          (num-cell-char
           (/ cell-width (char-width cfw:fchar-horizontal-line)))
          (num-date-cell-char
@@ -60,21 +60,21 @@ Displays full name if nil."
        (hline . ,(cfw:rt
                   (concat
                    (cl-loop for i from 0 below 2 concat
-                         (concat
-                          (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
-                          (make-string num-date-cell-char cfw:fchar-horizontal-line)
-                          (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
-                          (make-string num-cell-char cfw:fchar-horizontal-line)))
+                            (concat
+                             (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
+                             (make-string num-date-cell-char cfw:fchar-horizontal-line)
+                             (make-string 1 (if (= i 0) cfw:fchar-top-left-corner cfw:fchar-top-junction))
+                             (make-string num-cell-char cfw:fchar-horizontal-line)))
                    (make-string 1 cfw:fchar-top-right-corner) EOL)
                   'cfw:face-grid))
        (cline . ,(cfw:rt
                   (concat
                    (cl-loop for i from 0 below 2 concat
-                         (concat
-                          (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
-                          (make-string num-date-cell-char cfw:fchar-horizontal-line)
-                          (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
-                          (make-string num-cell-char cfw:fchar-horizontal-line)))
+                            (concat
+                             (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
+                             (make-string num-date-cell-char cfw:fchar-horizontal-line)
+                             (make-string 1 (if (= i 0) cfw:fchar-left-junction cfw:fchar-junction))
+                             (make-string num-cell-char cfw:fchar-horizontal-line)))
                    (make-string 1 cfw:fchar-right-junction) EOL) 'cfw:face-grid))))))
 
 (defun calfw-transpose-view-nday-week-calc-param (n dest)
@@ -105,11 +105,11 @@ return an alist of rendering parameters."
          (param (calfw-transpose-render-append-parts
                  (calfw-transpose-view-nday-week-calc-param n dest)))
          (total-width (cfw:k 'total-width param))
-         (time-width (cfw:k 'time-width param))
+         ;; (time-width (cfw:k 'time-width param))
          (EOL (cfw:k 'eol param))
-         (VL (cfw:k 'vl param))
-         (time-hline (cfw:k 'time-hline param))
-         (hline (cfw:k 'hline param))
+         ;; (VL (cfw:k 'vl param))
+         ;; (time-hline (cfw:k 'time-hline param))
+         ;; (hline (cfw:k 'hline param))
          (cline (cfw:k 'cline param))
          (model (or model
                     (calfw-blocks-view-block-nday-week-model
@@ -150,8 +150,9 @@ return an alist of rendering parameters."
      'calfw-blocks-render-content t)))
 
 
-(defun calfw-transpose-render-calendar-cells-days (model param title-func &optional
-                                             days content-fun do-weeks)
+(defun calfw-transpose-render-calendar-cells-days
+    (model param title-func &optional
+           days content-fun _do-weeks)
   "[internal] Insert calendar cells for the linear views."
   (calfw-transpose-render-columns
    (cl-loop with cell-width      = (cfw:k 'cell-width param)
@@ -196,15 +197,15 @@ return an alist of rendering parameters."
          (cons date (cons (cons tday (cons ant hday-str)) prs-contents)))
    param))
 
-(defun calfw-transpose-render-periods-days (date periods-stack cell-width)
+(defun calfw-transpose-render-periods-days (_date periods-stack _cell-width)
   "[internal] Insert period texts."
   (when periods-stack
     (let ((stack (sort (copy-sequence periods-stack)
                        (lambda (a b) (< (car a) (car b))))))
-      (cl-loop for (row (begin end content props interval)) in stack
-            for beginp = (equal date begin)
-            for endp = (equal date end)
-            for width = (- cell-width 2)
+      (cl-loop for (_row (begin end content _props interval)) in stack
+            ;; for beginp = (equal date begin)
+            ;; for endp = (equal date end)
+            ;; for width = (- cell-width 2)
             for begintime = (if interval (calfw-blocks-format-time (car interval)))
             for endtime = (if interval (calfw-blocks-format-time (cdr interval)))
             for beginday = (cfw:strtime begin)
@@ -222,13 +223,17 @@ return an alist of rendering parameters."
               "")))))
 
 (defun calfw-transpose-render-columns (day-columns param)
-  "[internal] This function concatenates each rows on the days into a string of a physical line.
-DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
+  "Concatenates each row on the days into a string of a physical line.
+[internal]
+
+DAY-COLUMNS is a list of columns. A column is a list of following
+form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
   (let* ((date-cell-width  (cfw:k 'date-cell-width  param))
          (cell-width  (cfw:k 'cell-width  param))
          (cell-height (cfw:k 'cell-height param))
          (EOL (cfw:k 'eol param)) (VL (cfw:k 'vl param))
-         (hline (cfw:k 'hline param)) (cline (cfw:k 'cline param))
+         ;; (hline (cfw:k 'hline param))
+         (cline (cfw:k 'cline param))
          (num-days (length day-columns))
          (first-half (seq-subseq day-columns 0 (/ num-days 2)))
          (second-half (seq-subseq day-columns (/ num-days 2) num-days)))
@@ -248,7 +253,7 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
                       for date = (car day-rows)
                       for dayname = (aref calendar-day-name-array
                                           (calendar-day-of-week date))
-                      for (tday . (ant . hday)) = (cadr day-rows)
+                      for (tday . (_ant . hday)) = (cadr day-rows)
                       collect
                       (cons date (cfw:render-break-lines
                                   (list
@@ -350,7 +355,7 @@ DAY-COLUMNS is a list of columns. A column is a list of following form: (DATE (D
     (transpose-two-weeks    . calfw-transpose-view-two-weeks))))
 
 (setq
- calfw-block-toolbar-views
+ calfw-blocks-toolbar-views
  '(("Day" . block-day)
    ("3-Day" . block-3-day)
    ("Week" . block-week)

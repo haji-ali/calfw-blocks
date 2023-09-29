@@ -63,8 +63,8 @@ If TEXT does not have a range, return nil."
                      start-time))
          (time-str (and time-of-day
                         (format "%02i:%02i " (/ time-of-day 100) (% time-of-day 100))))
-         (marker (cfw:org-tp item 'org-marker))
-         (buffer (and marker (marker-buffer marker)))
+         ;; (marker (cfw:org-tp item 'org-marker))
+         ;; (buffer (and marker (marker-buffer marker)))
          (text (cfw:org-extract-summary item))
          (props (cfw:extract-text-props item 'face 'keymap))
          (extra (cfw:org-tp item 'extra)))
