@@ -879,14 +879,19 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                       (cons date (calfw-blocks-render-all-day-events
                                   lines cell-width (1- cell-height))))
              with all-day-columns-height = ;;(seq-max (mapcar 'length
-             (+ 1 (seq-max (mapcar (lambda (x)
-                                     (seq-max
-                                      (or (seq-filter 'identity
-                                                      (mapcar (lambda (y)
-                                                                (get-text-property 0 'cfw:row-count y))
-                                                              (cdr x)))
-                                          '(0))))
-                                   breaked-all-day-columns)))
+             (seq-max (mapcar (lambda (x)
+                                (max
+                                 (seq-max
+                                  (or (seq-filter
+                                       'identity
+                                       (mapcar
+                                        (lambda (y)
+                                          (1+ (get-text-property
+                                               0 'cfw:row-count y)))
+                                        (cdr x)))
+                                      '(0)))
+                                 (1- (length x))))
+                              breaked-all-day-columns))
              with breaked-all-day-rows-padded =
              (calfw-blocks--pad-and-transpose all-day-columns-height
                                               breaked-all-day-columns)
