@@ -882,15 +882,15 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
              (seq-max (mapcar (lambda (x)
                                 (max
                                  (1- (length x))
-                                 (or 0
-                                     (seq-max
-                                      (mapcar
+                                 (seq-max
+                                  (or (mapcar
                                        (lambda (y)
                                          (1+
                                           (or (get-text-property
                                                0 'cfw:row-count y)
                                               -1)))
-                                       (cdr x))))))
+                                       (cdr x))
+                                      '(0)))))
                               breaked-all-day-columns))
              with breaked-all-day-rows-padded =
              (calfw-blocks--pad-and-transpose all-day-columns-height
