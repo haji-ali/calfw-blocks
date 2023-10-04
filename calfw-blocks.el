@@ -84,11 +84,6 @@ If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
   :type 'boolean)
 
-(defface calfw-blocks-overline
-  '((t :overline t))
-  "Basic face for overline."
-  :group 'basic-faces)
-
 (defvar calfw-blocks-event-keymap nil)
 
 (defvar calfw-blocks-earliest-visible-time '(0 0)
@@ -102,6 +97,11 @@ If \\='cont then render them without splitting into cells."
   "Number of days being in a view.")
 
 ;; Faces
+(defface calfw-blocks-overline
+  '((t (:overline t)))
+  "Basic face for overline."
+  :group 'calfw-blocks)
+
 (defface calfw-blocks-now-indicator
   '((t (:strike-through "red")))
   "Face for current time indicator."
