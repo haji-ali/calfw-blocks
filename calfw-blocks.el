@@ -31,6 +31,7 @@
 ;;; Code:
 
 (require 'calfw)
+(require 'mule-util)
 
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
