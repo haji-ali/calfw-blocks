@@ -31,6 +31,7 @@
 ;;; Code:
 
 (require 'calfw)
+(require 'mule-util)  ;; for truncate-string-ellipsis
 
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
