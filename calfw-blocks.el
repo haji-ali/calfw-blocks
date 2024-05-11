@@ -1459,10 +1459,12 @@ Add HELP-TEXT in case the string is truncated."
 
 (defun calfw-blocks--status-face (text &optional background)
   (let* ((event (get-text-property 0 'cfw:event text)))
+    (if event
     (cl-case (cfw:event-status event)
       (cancelled (if background
                      'calfw-blocks-cancelled-event-bg
-                   'calfw-blocks-cancelled-event)))))
+                       'calfw-blocks-cancelled-event)))
+      (message "Wrong event!? %S" text))))
 
 (defun calfw-blocks-split-single-block (block)
   "Split event BLOCK into lines of width CELL-WIDTH.
@@ -1655,23 +1657,6 @@ event appears and the cfw:event structure."
           (setq evs (append evs (list (cons cur-pt ev)))))))
     evs))
 
-(cl-defun calfw-blocks-scroll-to-initial-visible-time (&key view
-                                                            &allow-other-keys)
-  (when (string-match-p "block" (symbol-name view))
-    (scroll-up (floor (* calfw-blocks-lines-per-hour
-                         (calfw-blocks--time-pair-to-float
-                          calfw-blocks-initial-visible-time))))))
-
-(cl-defun calfw-blocks-scroll-to-initial-visible-time-after-update (component)
-  (let ((buf (cfw:cp-get-buffer component))
-        (view (cfw:component-view component)))
-    (when (and buf
-               (get-buffer-window buf)
-               (string-match-p "block" (symbol-name view)))
-      (with-selected-window (get-buffer-window buf)
-        (scroll-up (floor (* calfw-blocks-lines-per-hour
-                             (calfw-blocks--time-pair-to-float calfw-blocks-initial-visible-time))))))))
-
 (dolist (dispatch '((block-week        .  calfw-blocks-view-block-week)
                     (block-day         .  calfw-blocks-view-block-day)
                     (block-2-day       .  calfw-blocks-view-block-2-day)
@@ -1680,9 +1665,6 @@ event appears and the cfw:event structure."
                     (block-5-day       .  calfw-blocks-view-block-5-day)
                     (block-7-day       .  calfw-blocks-view-block-7-day)))
   (add-to-list 'cfw:cp-dipatch-funcs dispatch))
-
-(advice-add 'cfw:open-calendar-buffer
-            :after 'calfw-blocks-scroll-to-initial-visible-time)
 
 (advice-add 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
