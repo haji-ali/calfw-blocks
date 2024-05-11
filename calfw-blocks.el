@@ -1459,12 +1459,11 @@ Add HELP-TEXT in case the string is truncated."
 
 (defun calfw-blocks--status-face (text &optional background)
   (let* ((event (get-text-property 0 'cfw:event text)))
-    (if event
+    (when event
     (cl-case (cfw:event-status event)
       (cancelled (if background
                      'calfw-blocks-cancelled-event-bg
-                       'calfw-blocks-cancelled-event)))
-      (message "Wrong event!? %S" text))))
+                     'calfw-blocks-cancelled-event))))))
 
 (defun calfw-blocks-split-single-block (block)
   "Split event BLOCK into lines of width CELL-WIDTH.
