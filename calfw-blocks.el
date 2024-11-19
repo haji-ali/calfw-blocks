@@ -1428,7 +1428,9 @@ Add HELP-TEXT in case the string is truncated."
     (when (or
            (> (length lines) max-lines)
            (> (length last-line) width))
-      (setq ellips (truncate-string-ellipsis))
+      ;; The concat is there to avoid adding properties to
+      ;; (truncate-string-ellipsis) !!
+      (setq ellips (concat (truncate-string-ellipsis) ""))
       (add-text-properties
        0 (length ellips)
        (text-properties-at (1- (length last-line))
