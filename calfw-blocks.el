@@ -103,6 +103,11 @@ If \\='cont then render them without splitting into cells."
   "Basic face for overline."
   :group 'calfw-blocks)
 
+(defface calfw-blocks-underline
+  '((t (:underline t)))
+  "Basic face for underline."
+  :group 'calfw-blocks)
+
 (defface calfw-blocks-now-indicator
   '((t (:strike-through "red")))
   "Face for current time indicator."
@@ -1534,6 +1539,9 @@ is added at the beginning of a block to indicate it is the beginning."
                     (when (= i 0)
                       (add-face-text-property 0 (length tmp)
                                               'calfw-blocks-overline t tmp))
+                    (when (= i (- block-height 1))
+                      (add-face-text-property 0 (length tmp)
+                                              'calfw-blocks-underline t tmp))
                     (when is-exceeded-indicator
                       (add-face-text-property 0 (length tmp)
                                               'italic t tmp))))
