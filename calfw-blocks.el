@@ -85,6 +85,9 @@ If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
   :type 'boolean)
 
+(defvar calfw-blocks-event-start "|"
+  "String to add at beginning of event, if not on cell start.")
+
 (defvar calfw-blocks-event-keymap nil)
 
 (defvar calfw-blocks-earliest-visible-time '(0 0)
@@ -1490,7 +1493,9 @@ is added at the beginning of a block to indicate it is the beginning."
          (block-height (- (cadr block-vertical-pos) (car block-vertical-pos)))
          ;; (end-of-cell (= (cadr block-horizontal-pos) cell-width))
          (is-beginning-of-cell (= (car block-horizontal-pos) 0))
-         (block-width-adjusted (if is-beginning-of-cell block-width (+ -1 block-width)))
+         (block-width-adjusted (if is-beginning-of-cell block-width
+                                 (- block-width
+                                    (string-width calfw-blocks-event-start))))
          (props (cl-copy-seq (text-properties-at (1- (length block-string)) block-string)))
          (block-lines (calfw-blocks--to-lines
                        (calfw-blocks--wrap-string
@@ -1525,7 +1530,8 @@ is added at the beginning of a block to indicate it is the beginning."
                               ;; the properties of the event might cause
                               ;; issues with org goto/navigation/etc?
                               (when (not is-beginning-of-cell)
-                                (apply 'propertize "|" props)) ;;(if (= i 0) "*" "|"))
+                                (apply 'propertize calfw-blocks-event-start
+                                       props)) ;;(if (= i 0) "*" "|"))
                               (calfw-blocks-generalized-substring
                                (car block-lines) 0 block-width-adjusted
                                props))
