@@ -33,6 +33,22 @@
 (require 'calfw)
 (require 'mule-util)  ;; for truncate-string-ellipsis
 
+
+(defcustom calfw-blocks-fchar-bottom-right-corner cfw:fchar-right-junction
+  "The character used for drawing the bottom-right corner."
+  :group 'calfw-blocks
+  :type 'character)
+
+(defcustom calfw-blocks-fchar-bottom-left-corner cfw:fchar-left-junction
+  "The character used for drawing the bottom-left corner."
+  :group 'calfw-blocks
+  :type 'character)
+
+(defcustom calfw-blocks-fchar-bottom-junction cfw:fchar-junction
+  "The character used for drawing junction lines at the bottom side."
+  :group 'calfw-blocks
+  :type 'character)
+
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
   :group 'calfw-blocks
@@ -85,7 +101,7 @@ If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
   :type 'boolean)
 
-(defvar calfw-blocks-event-start "|"
+(defvar calfw-blocks-event-start (char-to-string cfw:fchar-vertical-line)
   "String to add at beginning of event, if not on cell start.")
 
 (defvar calfw-blocks-event-keymap nil)
@@ -626,9 +642,10 @@ Using this function to sort by start time first."
 (defun calfw-blocks-render-default-content-face (str &optional default-face)
   "[internal] Put the default content face. If STR has some
 faces, the faces are remained."
-  (cl-loop for i from 0 below (length str)
+  (cl-loop
            with ret = (substring str 0)
-           with face = (or default-face
+   for i from 0 below (length str)
+   for face = (or default-face
                            (calfw-blocks--status-face str 'background)
                            (cfw:render-get-face-content
                             str 'cfw:face-default-content))
@@ -877,7 +894,30 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
          (VL (cfw:k 'vl param))
          (time-hline (cfw:k 'time-hline param))
          ;;(hline (concat time-hline (cfw:k 'hline param)))
-         (cline (concat time-hline (cfw:k 'cline param)))
+         ;;(cline (concat time-hline (cfw:k 'cline param)))
+         (bline (concat time-hline
+                        (let* ((EOL "\n")
+                               (cell-width (cfw:k 'cell-width param))
+                               (columns (cfw:k 'columns param))
+                               (num-cell-char
+                                (/ cell-width (char-width cfw:fchar-horizontal-line))))
+                          (cfw:rt
+                           (concat
+                            (cl-loop
+                             for i from 0 below columns
+                             concat
+                             (concat
+                              (make-string
+                               1 (if (= i 0)
+                                     calfw-blocks-fchar-bottom-left-corner
+                                   calfw-blocks-fchar-bottom-junction))
+                              (make-string
+                               num-cell-char
+                               cfw:fchar-horizontal-line)))
+                            (make-string
+                             1 calfw-blocks-fchar-bottom-right-corner)
+                            EOL)
+                           'cfw:face-grid))))
          (earliest-date (caar day-columns))
          ;; (curr-time-linum (calfw-blocks--current-time-vertical-position))
          )
@@ -1004,7 +1044,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                 time-width (length final-line) 'calfw-blocks-now-indicator
                 t final-line))
              (insert final-line))
-    (insert cline)))
+    (insert bline)))
 
 (defun calfw-blocks--pad-and-transpose (max-len columns)
   "Return the columns as rows, padded with space when needed"
@@ -1550,7 +1590,13 @@ is added at the beginning of a block to indicate it is the beginning."
                                               'calfw-blocks-underline t tmp))
                     (when is-exceeded-indicator
                       (add-face-text-property 0 (length tmp)
-                                              'italic t tmp))))
+                                              'italic t tmp))
+                    ;; (when (bound-and-true-p 'calfw-blocks-event-box)
+                    ;;   ;; Essentially, we need to put a box on the first character
+                    ;;   ;; and a no-box on the second character.
+                    ;;   (add-face-text-property 0 1 '(:box (:line-width (-1 . 0))) t tmp)
+                    ;;   (add-face-text-property 1 2 '(:box (:line-width (0 . 0))) t tmp))
+                    ))
             rendered-block)
       (setq block-lines (cdr block-lines)))
     (reverse rendered-block)))
