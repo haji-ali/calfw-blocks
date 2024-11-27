@@ -1718,29 +1718,203 @@ event appears and the cfw:event structure."
           (setq evs (append evs (list (cons cur-pt ev)))))))
     evs))
 
-(dolist (dispatch '((block-week        .  calfw-blocks-view-block-week)
+
+(defun calfw-blocks--get-overlapping-block-positions (lines cell-width
+                                                            &optional lines-lst)
+  "Return LINES with assigned vertical and horizontal positions.
+
+Each element of the list is a list (event vertical-pos
+horizontal-pos). The vertical-pos and horizontal-pos are both
+half open intervals represented as two element lists, containing
+the start (inclusive) and the end (exclusive). The vertical-pos
+is in unit lines, the horizontal-pos is in unit characters. Both
+positions are given relative to the calendar cell the event
+resides in, which has width CELL-WIDTH.
+
+The vertical positions represent the time of day the event
+occurs. The horizontal positions are assigned to display
+concurrent events side by side. If there is not enough space for
+all blocks to have width at least `calfw-blocks-min-block-width'
+then some events are not displayed, and an indicator for how many
+events are not displayed is shown."
+  (let* ((lines-lst
+          (or lines-lst
+              (mapcar
+               (lambda (x)
+                 (list x (calfw-blocks--get-block-vertical-position x)))
+               lines)))
+         ;; Group by vertical start, sorting the groups in ascending order
+         (groups (cl-sort (seq-group-by 'caadr lines-lst)
+                          '< :key 'car))
+         ;; Sort within each group by descending height
+         (groups (cl-loop for g in groups
+                          ;; sort within groups
+                          collect (cons
+                                   (car g)
+                                   (seq-sort
+                                    (lambda (x y)
+                                      (> (- (cadadr x) (caadr x))
+                                         (- (cadadr y) (caadr y))))
+                                    (cdr g))))))
+    (cl-loop
+     with new-lines-lst = nil
+     for g in groups
+     for rem = (length (cdr g)) ;; Remaining segments in this group
+     do (cl-loop for l in (cdr g)
+                 ;; Go over any added indices that vertically intersect with the
+                 ;; current line
+                 for intervals = (cl-loop
+                                  with intervals = nil
+                                  with start = 0
+                                  for x in
+                                  (cl-loop for y in new-lines-lst
+                                           if (calfw-blocks--interval-intersect?
+                                               (cadr y) (cadr l))
+                                           collect (cdr y) into intersection
+                                           finally return
+                                           (cl-sort intersection '<
+                                                    :key 'caadr))
+                                  for x-horz = (cadr x)
+                                  for sx = (car x-horz)
+                                  do (progn
+                                       (if (> sx start)
+                                           (push (list start sx)
+                                                 intervals))
+                                       (if (= (caar x) (car g))
+                                           ;; Same group, take
+                                           ;; out the whole interval
+                                           (setq start (cadr x-horz))
+                                         (setq start (1+ sx))))
+                                  finally do (push
+                                              (list start cell-width)
+                                              intervals)
+                                  finally return
+                                  (cl-sort intervals
+                                           '> ;; Get largest intervals first
+                                           :key
+                                           (lambda (x) ;; Gets width
+                                             (- (apply '- x)))))
+                 ;; TODO: Need to calculate the string box as well.
+                 ;;
+                 ;; If we have zero intervals, we're eff'ed. Need to issue a
+                 ;; warning and eventually come up with a solution when we run
+                 ;; into it.
+                 ;; If we have one interval of insufficient size, and more
+                 ;; than one event remaining, need to add an +more indicator
+                 do
+                 (let ((int (car-safe intervals)))
+                   (cond
+                    ((null int)
+                     (warn "Not enough space to show all events in one or more cells!"))
+                    ((and (>= rem 1)
+                          (< (- (apply '- int))
+                             (* rem calfw-blocks-min-block-width)))
+                     (let* ((x-vertical-pos (nth 1 l))
+                            (exceeded-indicator
+                             (list (propertize
+                                    (format "+%dmore"
+                                            rem)
+                                    'calfw-blocks-exceeded-indicator t)
+                                   (list (nth 0 x-vertical-pos)
+                                         (max 4 (nth 1 x-vertical-pos)))
+                                   (car intervals))))
+                       (push (cons -1 exceeded-indicator) new-lines-lst)))
+                    (t (push
+                        (append l
+                                (list
+                                 (if (or (= rem 1) (> (length intervals) 1))
+                                     int
+                                   ;; Split the interval into equal parts
+                                   (let* ((s (car int))
+                                          (e (cadr int))
+                                          (w (- e s)))
+                                     (list s (+ s (/ w rem)))))))
+                        new-lines-lst)))
+                   (setq rem (1- rem))))
+     finally return new-lines-lst)))
+
+(defun calfw-blocks--pad-overlapping-block-line (block-line
+                                                 cell-width make-time-grid-line)
+  (let* ((block-line
+          (seq-sort (lambda (a b)
+                      (> (car (get-text-property
+                               0 'calfw-blocks-horizontal-pos a))
+                         (car (get-text-property
+                               0 'calfw-blocks-horizontal-pos b))))
+                    block-line))
+         padded-line (prev-start cell-width))
+    (dolist (segment block-line
+                     (progn
+                       (push (if make-time-grid-line
+                                 (calfw-blocks--grid-line prev-start)
+                               (make-string prev-start ? ))
+                             padded-line)
+                       padded-line))
+      (let* ((horizontal-pos (get-text-property 0 'calfw-blocks-horizontal-pos
+                                                segment))
+             (start (car horizontal-pos))
+             (end (cadr horizontal-pos)))
+        (if (< end prev-start)
+            (push (if make-time-grid-line
+                      (calfw-blocks--grid-line (- prev-start end))
+                    (make-string (- prev-start end) ? ))
+                  padded-line))
+        (push (substring segment 0 (min
+                                    (- end start)
+                                    (- prev-start start)))
+              padded-line)
+        (setq prev-start start)))))
+
+(define-minor-mode calfw-blocks-overlapping
+  "Allow blocks to overlap in calfw-blocks."
+  :global t
+  :init-value nil
+  (dolist (ad '((calfw-blocks--get-block-positions
+                 . calfw-blocks--get-overlapping-block-positions)
+                (calfw-blocks--pad-block-line
+                 . calfw-blocks--pad-overlapping-block-line)))
+    (if calfw-blocks-overlapping
+        (advice-add (car ad) :override (cdr ad))
+      (advice-remove (car ad) (cdr ad))))
+  (when-let (buf (get-buffer cfw:calendar-buffer-name))
+    (with-current-buffer buf
+      (cfw:refresh-calendar-buffer nil))))
+
+(define-minor-mode calfw-blocks
+  "Enable calfw view as blocks."
+  :global t
+  :init-value t
+  (let ((fn-ad (if calfw-blocks
+                   'advice-add
+                 (lambda (symbol _ fn &rest _)
+                   (advice-remove symbol fn))))
+        (fn-list (if calfw-blocks
+                     'add-to-list
+                   (lambda (qlst item)
+                     (set qlst (cl-delete
+                                item
+                                (symbol-value qlst)
+                                :test #'equal))))))
+    (dolist (dispatch '((block-week        .  calfw-blocks-view-block-week)
                     (block-day         .  calfw-blocks-view-block-day)
                     (block-2-day       .  calfw-blocks-view-block-2-day)
                     (block-3-day       .  calfw-blocks-view-block-3-day)
                     (block-4-day       .  calfw-blocks-view-block-4-day)
                     (block-5-day       .  calfw-blocks-view-block-5-day)
                     (block-7-day       .  calfw-blocks-view-block-7-day)))
-  (add-to-list 'cfw:cp-dipatch-funcs dispatch))
+      (funcall fn-list 'cfw:cp-dipatch-funcs dispatch))
 
-(advice-add 'cfw:render-toolbar
+    (funcall fn-ad 'cfw:render-toolbar
             :override 'calfw-blocks-render-toolbar)
-
-(advice-add 'cfw:cp-update
-            :override 'calfw-blocks--cfw-cp-update)
-
-(advice-add 'cfw:refresh-calendar-buffer
+    (funcall fn-ad 'cfw:cp-update :override 'calfw-blocks--cfw-cp-update)
+    (funcall fn-ad 'cfw:refresh-calendar-buffer
             :override 'calfw-blocks--cfw-refresh-calendar-buffer)
 
-(dolist (fn '(cfw:navi-next-month-command
+    (dolist (fn '(cfw:navi-next-month-command
               cfw:navi-previous-month-command
               cfw:refresh-calendar-buffer))
-  (advice-add fn :around
-              #'calfw-blocks-perserve-buffer-view-advice))
+      (funcall fn-ad fn :around
+               #'calfw-blocks-perserve-buffer-view-advice))))
 
 (provide 'calfw-blocks)
 ;;; calfw-blocks.el ends here
