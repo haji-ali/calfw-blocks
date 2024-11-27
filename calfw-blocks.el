@@ -1531,6 +1531,9 @@ is added at the beginning of a block to indicate it is the beginning."
          (block-horizontal-pos (caddr block))
          (block-width (- (cadr block-horizontal-pos) (car block-horizontal-pos)))
          (block-height (- (cadr block-vertical-pos) (car block-vertical-pos)))
+         (text-height (or
+                       (car-safe (cdddr block))
+                       block-height))
          ;; (end-of-cell (= (cadr block-horizontal-pos) cell-width))
          (is-beginning-of-cell (= (car block-horizontal-pos) 0))
          (block-width-adjusted (if is-beginning-of-cell block-width
@@ -1550,7 +1553,7 @@ is added at the beginning of a block to indicate it is the beginning."
                                                    block-string)
                                                   t block-string))
                         block-width-adjusted
-                        block-height
+                        text-height ;;block-height
                         (apply 'propertize "-" props))
                        block-width-adjusted
                        block-height
@@ -1761,54 +1764,60 @@ events are not displayed is shown."
      for g in groups
      for rem = (length (cdr g)) ;; Remaining segments in this group
      do (cl-loop for l in (cdr g)
-                 ;; Go over any added indices that vertically intersect with the
-                 ;; current line
+                 ;; Go over any added indices that vertically intersect with
+                 ;; the current lines. intervals will be a list of (start end
+                 ;; event) which specifies the interval and which event it is
+                 ;; intersection (one at most).
                  for intervals = (cl-loop
                                   with intervals = nil
                                   with start = 0
+                                  with cur-intersection = nil
                                   for x in
                                   (cl-loop for y in new-lines-lst
                                            if (calfw-blocks--interval-intersect?
                                                (cadr y) (cadr l))
-                                           collect (cdr y) into intersection
+                                           collect y into intersection
                                            finally return
                                            (cl-sort intersection '<
-                                                    :key 'caadr))
-                                  for x-horz = (cadr x)
+                                                    :key 'caaddr))
+                                  for x-horz = (caddr x)
                                   for sx = (car x-horz)
                                   do (progn
                                        (if (> sx start)
-                                           (push (list start sx)
+                                           (push (list start sx
+                                                       cur-intersection)
                                                  intervals))
-                                       (if (= (caar x) (car g))
+                                       (if (= (caadr x) (car g))
                                            ;; Same group, take
                                            ;; out the whole interval
-                                           (setq start (cadr x-horz))
-                                         (setq start (1+ sx))))
+                                           (setq start (cadr x-horz)
+                                                 cur-intersection nil)
+                                         (setq cur-intersection x
+                                               start (1+ sx))))
                                   finally do (push
-                                              (list start cell-width)
+                                              (list start cell-width
+                                                    cur-intersection)
                                               intervals)
                                   finally return
                                   (cl-sort intervals
                                            '> ;; Get largest intervals first
                                            :key
-                                           (lambda (x) ;; Gets width
-                                             (- (apply '- x)))))
+                                           (lambda (int) ;; Gets width
+                                             (- (cadr int) (car int)))))
                  ;; TODO: Need to calculate the string box as well.
-                 ;;
-                 ;; If we have zero intervals, we're eff'ed. Need to issue a
-                 ;; warning and eventually come up with a solution when we run
-                 ;; into it.
-                 ;; If we have one interval of insufficient size, and more
-                 ;; than one event remaining, need to add an +more indicator
                  do
                  (let ((int (car-safe intervals)))
                    (cond
                     ((null int)
+                     ;; If we have zero intervals, we're screwed. Need to
+                     ;; issue a warning and eventually come up with a solution
+                     ;; when we run into it.
                      (warn "Not enough space to show all events in one or more cells!"))
                     ((and (>= rem 1)
-                          (< (- (apply '- int))
+                          (< (- (cadr int) (car int))
                              (* rem calfw-blocks-min-block-width)))
+                     ;; If we have one interval of insufficient size, and more
+                     ;; than one event remaining, need to add an +more indicator
                      (let* ((x-vertical-pos (nth 1 l))
                             (exceeded-indicator
                              (list (propertize
@@ -1817,19 +1826,35 @@ events are not displayed is shown."
                                     'calfw-blocks-exceeded-indicator t)
                                    (list (nth 0 x-vertical-pos)
                                          (max 4 (nth 1 x-vertical-pos)))
-                                   (car intervals))))
+                                   (butlast int))))
                        (push (cons -1 exceeded-indicator) new-lines-lst)))
                     (t (push
                         (append l
                                 (list
                                  (if (or (= rem 1) (> (length intervals) 1))
-                                     int
+                                     (butlast int)
                                    ;; Split the interval into equal parts
                                    (let* ((s (car int))
                                           (e (cadr int))
                                           (w (- e s)))
                                      (list s (+ s (/ w rem)))))))
                         new-lines-lst)))
+                   (when-let ((intersector (and int (nth 2 int))))
+                     ;; Update the text height of the event that intersects
+                     ;; this interval
+                     (let* ((int-start (caadr intersector))
+                            (int-end (cadadr intersector))
+                            (cur-end (caadr l))
+                            (max-height (- cur-end int-start))
+                            (old-height (nth 3 intersector)))
+                       (if old-height
+                           (setcar (nthcdr 3 intersector)
+                                   (min old-height max-height))
+                         (setcdr intersector
+                                 (append (cdr intersector)
+                                         (list (min max-height
+                                                    (- int-end
+                                                       int-start))))))))
                    (setq rem (1- rem))))
      finally return new-lines-lst)))
 
