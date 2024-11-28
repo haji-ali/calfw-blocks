@@ -1722,8 +1722,7 @@ event appears and the cfw:event structure."
     evs))
 
 
-(defun calfw-blocks--get-overlapping-block-positions (lines cell-width
-                                                            &optional lines-lst)
+(defun calfw-blocks--get-overlapping-block-positions (lines cell-width)
   "Return LINES with assigned vertical and horizontal positions.
 
 Each element of the list is a list (event vertical-pos
@@ -1741,11 +1740,10 @@ all blocks to have width at least `calfw-blocks-min-block-width'
 then some events are not displayed, and an indicator for how many
 events are not displayed is shown."
   (let* ((lines-lst
-          (or lines-lst
               (mapcar
                (lambda (x)
                  (list x (calfw-blocks--get-block-vertical-position x)))
-               lines)))
+           lines))
          ;; Group by vertical start, sorting the groups in ascending order
          (groups (cl-sort (seq-group-by 'caadr lines-lst)
                           '< :key 'car))
