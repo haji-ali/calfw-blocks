@@ -260,7 +260,8 @@ return an alist of rendering parameters."
 (defun calfw-blocks-view-block-nday-week (n component &optional model)
   "[internal] Render weekly calendar view."
   (let* ((dest (cfw:component-dest component))
-         (param (cfw:render-append-parts (calfw-blocks-view-nday-week-calc-param n dest)))
+         (param (cfw:render-append-parts
+                 (calfw-blocks-view-nday-week-calc-param n dest)))
          (total-width (cfw:k 'total-width param))
          (time-width (cfw:k 'time-width param))
          (EOL (cfw:k 'eol param))
@@ -1276,20 +1277,27 @@ events are not displayed is shown."
 (defun calfw-blocks--get-block-vertical-position (p)
   "[inclusive, exclusive)"
   (let* ((float-interval (calfw-blocks--get-float-time-interval p))
-         (start-time (calfw-blocks--time-pair-to-float calfw-blocks-earliest-visible-time))
+         (start-time (calfw-blocks--time-pair-to-float
+                      calfw-blocks-earliest-visible-time))
          ;; (minutes-per-line (/ 60 calfw-blocks-lines-per-hour))
          (interval-start (car float-interval))
-         (interval-end (if (= interval-start (cadr float-interval)) (+ calfw-blocks-default-event-length interval-start) (cadr float-interval))))
-    (list (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour (- interval-start start-time)))
-          (calfw-blocks-round-end-time (* calfw-blocks-lines-per-hour (- interval-end start-time))))))
+         (interval-end (if (= interval-start (cadr float-interval))
+                           (+ calfw-blocks-default-event-length interval-start)
+                         (cadr float-interval))))
+    (list (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour
+                                            (- interval-start start-time)))
+          (calfw-blocks-round-end-time (* calfw-blocks-lines-per-hour
+                                          (- interval-end start-time))))))
 
 (defun calfw-blocks--current-time-vertical-position ()
-  (let* ((start-time (calfw-blocks--time-pair-to-float calfw-blocks-earliest-visible-time))
+  (let* ((start-time (calfw-blocks--time-pair-to-float
+                      calfw-blocks-earliest-visible-time))
          (curr-time (decode-time (current-time)))
          (curr-hour (nth 2 curr-time))
          (curr-min (nth 1 curr-time))
          (time-float (+ curr-hour (/ curr-min 60.0))))
-    (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour (- time-float start-time)))))
+    (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour
+                                      (- time-float start-time)))))
 
 (defun calfw-blocks-point-to-time (&optional end-time)
   "Return the timestamp corresponding to point.
