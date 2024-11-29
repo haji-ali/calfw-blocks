@@ -1774,7 +1774,10 @@ events are not displayed is shown."
                  ;; the current lines. intervals will be a list of (start end
                  ;; event) which specifies the interval and which event it is
                  ;; intersection (one at most).
-                 for intervals = (cl-loop
+                 when (> rem 0)
+                 do
+                 (let* ((intervals
+                         (cl-loop
                                   with intervals = nil
                                   with start = 0
                                   with cur-intersection = nil
@@ -1809,10 +1812,8 @@ events are not displayed is shown."
                                            '> ;; Get largest intervals first
                                            :key
                                            (lambda (int) ;; Gets width
-                                             (- (cadr int) (car int)))))
-                 ;; TODO: Need to calculate the string box as well.
-                 do
-                 (let ((int (car-safe intervals)))
+                                     (- (cadr int) (car int))))))
+                        (int (car-safe intervals)))
                    (cond
                     ((null int)
                      ;; If we have zero intervals, we're screwed. Need to
@@ -1827,13 +1828,14 @@ events are not displayed is shown."
                      (let* ((x-vertical-pos (nth 1 l))
                             (exceeded-indicator
                              (list (propertize
-                                    (format "+%dmore"
-                                            rem)
+                                    (format "+%dmore" rem)
                                     'calfw-blocks-exceeded-indicator t)
                                    (list (nth 0 x-vertical-pos)
                                          (max 4 (nth 1 x-vertical-pos)))
                                    (butlast int))))
-                       (push (cons -1 exceeded-indicator) new-lines-lst)))
+                       (push exceeded-indicator new-lines-lst)
+                       ;; Ignore the rest
+                       (setq rem 0)))
                     (t (push
                         (append l
                                 (list
