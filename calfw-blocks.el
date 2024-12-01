@@ -1948,7 +1948,7 @@ events are not displayed is shown."
               padded-line)
         (setq prev-start start)))))
 
-(define-minor-mode calfw-blocks-overlapping
+(define-minor-mode calfw-blocks-overlapping-mode
   "Allow blocks to overlap in calfw-blocks."
   :global t
   :init-value nil
@@ -1956,22 +1956,22 @@ events are not displayed is shown."
                  . calfw-blocks--get-overlapping-block-positions)
                 (calfw-blocks--pad-block-line
                  . calfw-blocks--pad-overlapping-block-line)))
-    (if calfw-blocks-overlapping
+    (if calfw-blocks-overlapping-mode
         (advice-add (car ad) :override (cdr ad))
       (advice-remove (car ad) (cdr ad))))
   (when-let (buf (get-buffer cfw:calendar-buffer-name))
     (with-current-buffer buf
       (cfw:refresh-calendar-buffer nil))))
 
-(define-minor-mode calfw-blocks
+(define-minor-mode calfw-blocks-mode
   "Enable calfw view as blocks."
   :global t
-  :init-value t
-  (let ((fn-ad (if calfw-blocks
+  :init-value nil
+  (let ((fn-ad (if calfw-blocks-mode
                    'advice-add
                  (lambda (symbol _ fn &rest _)
                    (advice-remove symbol fn))))
-        (fn-list (if calfw-blocks
+        (fn-list (if calfw-blocks-mode
                      'add-to-list
                    (lambda (qlst item)
                      (set qlst (cl-delete
@@ -1998,6 +1998,8 @@ events are not displayed is shown."
               cfw:refresh-calendar-buffer))
       (funcall fn-ad fn :around
                #'calfw-blocks-perserve-buffer-view-advice))))
+
+(calfw-blocks-mode) ;; Enable mode by default
 
 (provide 'calfw-blocks)
 ;;; calfw-blocks.el ends here
