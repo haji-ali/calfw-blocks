@@ -659,8 +659,11 @@ faces, the faces are remained."
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
                                                       days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
-  (calfw-blocks-render-columns
+  (let*
+      ((min-hour 24) (max-hour 0)
+       (day-columns
    (cl-loop with cell-width      = (cfw:k 'cell-width param)
+                 with show-times      = (make-vector 24 nil)
             with days            = (or days (cfw:k 'days model))
             with content-fun     = (or content-fun
                                        'cfw:render-event-days-overview-content)
@@ -669,7 +672,6 @@ faces, the faces are remained."
             with headers         = (cfw:k 'headers  model)
             with raw-periods-all = (calfw-blocks-render-periods-stacks model)
             with sorter          = (cfw:model-get-sorter model)
-
             for date in days ; days columns loop
             for count from 0 below (length days)
             for hday         = (car (cfw:contents-get date holidays))
@@ -679,10 +681,22 @@ faces, the faces are remained."
             for ant          = (cfw:rt (cfw:contents-get date annotations)
                                        'cfw:face-annotation)
             for raw-periods  = (cfw:contents-get date raw-periods-all)
-            for raw-contents = (sort
-                                (funcall content-fun
-                                         (cfw:model-get-contents-by-date date model))
-                                sorter)
+                 for cfw-contents = (cfw:model-get-contents-by-date date model)
+                 do (cl-loop for evnt in cfw-contents
+                             for interval = (calfw-blocks-get-time-interval evnt)
+                             for start-hour = (caar interval)
+                             for end-hour = (cadr interval)
+                             for end-minute = (cddr interval)
+                             do
+                             (setq
+                              min-hour (min min-hour (caar interval))
+                              max-hour (max max-hour
+                                            ;; If the minute is 0, substrct
+                                            ;; from hour.
+                                            (- (cadr interval)
+                                               (if (= (caddr interval) 0) 1
+                                                 0)))))
+                 for raw-contents = (sort (funcall content-fun cfw-contents) sorter)
             for prs-contents = (append (if do-weeks
                                            (calfw-blocks-render-periods
                                             date raw-periods cell-width model)
@@ -701,8 +715,8 @@ faces, the faces are remained."
                         (if hday (concat " " (cfw:rt (substring hday 0)
                                                      'cfw:face-holiday))))
             collect
-            (cons date (cons (cons tday ant) prs-contents)))
-   param))
+                 (cons date (cons (cons tday ant) prs-contents)))))
+    (calfw-blocks-render-columns day-columns (cons min-hour max-hour) param)))
 
 
 (defun calfw-blocks-render-periods-days (date periods-stack cell-width)
@@ -883,11 +897,13 @@ Fix erroneous width in last line, should be fixed upstream in calfw."
              append
              (make-list (- calfw-blocks-lines-per-hour 1) nil))))
 
-(defun calfw-blocks-render-columns (day-columns param)
+(defun calfw-blocks-render-columns (day-columns hour-interval param)
   "[internal] Concatenate rows on the days into a string of a physical line.
 
 DAY-COLUMNS is a list of columns. A column is a list of following
-form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
+form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...).
+HOUR-INTERVAL is a cons (START . END). Hours outside this
+interval are hidden."
   (let* ((cell-width  (cfw:k 'cell-width  param))
          (cell-height (cfw:k 'cell-height param))
          (time-width (cfw:k 'time-width param))
@@ -973,7 +989,8 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                   (and cell (format "%s" cell))))
                 'cfw:date date)))
              (insert VL EOL))
-
+    ;; Need to figure out which times should be hidden and which should not
+    ;; here.
     (cl-loop with breaked-day-columns =
              (cl-loop for day-rows in day-columns
                       for (date _ . lines) = day-rows
@@ -995,15 +1012,27 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                          for date = (car day-rows)
                                          collect
                                          (equal date today)))
+             for cur-hour = (/ (1- i) calfw-blocks-lines-per-hour)
+             for shrunk-hour = (or (< cur-hour (car hour-interval))
+                                   (> cur-hour (cdr hour-interval)))
+             for show-cur-time = (and
+                                  calfw-blocks-show-current-time-indicator
+                                  (= (1- i)
+                                     (if shrunk-hour
+                                         ;; If hour is hidden, make sure
+                                         ;; current time is displayed on the
+                                         ;; first line.
+                                         (* (/ curr-time-linum
+                                               calfw-blocks-lines-per-hour)
+                                            calfw-blocks-lines-per-hour)
+                                       curr-time-linum))
+                                  today-shown)
              for final-line
              = (apply #'concat
                       (append
                        (list
                         (progn
-                          (when (and
-                                 calfw-blocks-show-current-time-indicator
-                                 (= (1- i) curr-time-linum)
-                                 today-shown)
+                          (when show-cur-time
                             (setq time (calfw-blocks-format-time
                                         (let ((curr-time (decode-time (current-time))))
                                           (list (nth 2 curr-time)
@@ -1023,10 +1052,7 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                           (string= row (make-string cell-width ?-))
                                           (not (eq date earliest-date)))
                                      ?-
-                                   (if (and
-                                        calfw-blocks-show-current-time-indicator
-                                        (= (1- i) curr-time-linum)
-                                        (equal date today))
+                                   (if (and show-cur-time (equal date today))
                                        (propertize "@"
                                                    'face
                                                    'cfw:face-today-title
@@ -1038,12 +1064,14 @@ form: (DATE (DAY-TITLE . ANNOTATION-TITLE) STRING STRING...)."
                                   'cfw:date date)))
                        (list curVL EOL)))
              do
-             (when (and calfw-blocks-show-current-time-indicator
-                        (= (1- i) curr-time-linum)
-                        today-shown)
+             (when show-cur-time
                (add-face-text-property
                 time-width (length final-line) 'calfw-blocks-now-indicator
                 t final-line))
+             (when (and (not (= (mod (1- i) calfw-blocks-lines-per-hour) 0))
+                        shrunk-hour)
+               (add-text-properties 0 (length final-line) '(invisible t)
+                                    final-line))
              (insert final-line))
     (insert bline)))
 
