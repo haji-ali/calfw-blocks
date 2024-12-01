@@ -101,6 +101,20 @@ If \\='cont then render them without splitting into cells."
   :group 'calfw-blocks
   :type 'boolean)
 
+(defcustom calfw-blocks-nonshrinking-hours '(9 . 17)
+  "Which hours to never shrink. If nil, shrink all hours.
+Cons of (START . END), inclusive."
+  :group 'calfw-blocks
+  :type 'list)
+
+(defcustom calfw-blocks-hour-shrink-size 1
+  "How many lines to leave when shrinking an hour.
+An integer, up to `calfw-blocks-lines-per-hour'.
+If nil or equal `calfw-blocks-lines-per-hour', do not shrink
+hours."
+  :group 'calfw-blocks
+  :type 'list)
+
 (defvar calfw-blocks-event-start (char-to-string cfw:fchar-vertical-line)
   "String to add at beginning of event, if not on cell start.")
 
@@ -660,7 +674,8 @@ faces, the faces are remained."
                                                       days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
   (let*
-      ((min-hour 24) (max-hour 0)
+      ((min-hour (or (car-safe calfw-blocks-nonshrinking-hours) 25))
+       (max-hour (or (cdr-safe calfw-blocks-nonshrinking-hours) -1))
        (day-columns
    (cl-loop with cell-width      = (cfw:k 'cell-width param)
                  with show-times      = (make-vector 24 nil)
@@ -1013,20 +1028,26 @@ interval are hidden."
                                          collect
                                          (equal date today)))
              for cur-hour = (/ (1- i) calfw-blocks-lines-per-hour)
-             for shrunk-hour = (or (< cur-hour (car hour-interval))
-                                   (> cur-hour (cdr hour-interval)))
+             for shrunk-hour = (and calfw-blocks-hour-shrink-size
+                                    (or (< cur-hour (car hour-interval))
+                                        (> cur-hour (cdr hour-interval))))
              for show-cur-time = (and
                                   calfw-blocks-show-current-time-indicator
+                                  today-shown
                                   (= (1- i)
                                      (if shrunk-hour
-                                         ;; If hour is hidden, make sure
+                                         ;; If hour is shrunk, make sure
                                          ;; current time is displayed on the
-                                         ;; first line.
-                                         (* (/ curr-time-linum
-                                               calfw-blocks-lines-per-hour)
+                                         ;; an visible appropriate
+                                         (let ((start (* (/ curr-time-linum
                                             calfw-blocks-lines-per-hour)
-                                       curr-time-linum))
-                                  today-shown)
+                                                         calfw-blocks-lines-per-hour)))
+                                           (+ start
+                                              (floor
+                                               (* (/ (- curr-time-linum start)
+                                                     (float calfw-blocks-lines-per-hour))
+                                                  calfw-blocks-hour-shrink-size))))
+                                       curr-time-linum)))
              for final-line
              = (apply #'concat
                       (append
@@ -1068,8 +1089,9 @@ interval are hidden."
                (add-face-text-property
                 time-width (length final-line) 'calfw-blocks-now-indicator
                 t final-line))
-             (when (and (not (= (mod (1- i) calfw-blocks-lines-per-hour) 0))
-                        shrunk-hour)
+             (when (and shrunk-hour
+                        (> (mod (1- i) calfw-blocks-lines-per-hour)
+                           (1- calfw-blocks-hour-shrink-size)))
                (add-text-properties 0 (length final-line) '(invisible t)
                                     final-line))
              (insert final-line))
