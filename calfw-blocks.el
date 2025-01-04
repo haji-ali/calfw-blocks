@@ -344,7 +344,7 @@ return an alist of rendering parameters."
                                       (calfw-blocks-navi-next-nday-week-command n))
      EOL hline)
     ;; time header
-    (insert (cfw:rt (cfw:render-right time-width "Time")
+    (insert (cfw:rt (cfw:render-right time-width "    ")
                     'default))
     ;; day names
     (insert day-of-week-names)
@@ -1018,7 +1018,13 @@ interval are hidden."
              for time = (prog1 (car time-columns)
                           (setq time-columns (cdr time-columns)))
              for curVL = (if time
-                             (propertize VL 'face 'calfw-blocks-overline)
+                             (let ((VL-copy (substring VL)))
+                               (add-face-text-property
+                                0 (length VL)
+                                'calfw-blocks-overline
+                                t
+                                VL-copy)
+                               VL-copy)
                            VL)
              for today = (calendar-current-date)
              for today-shown = (cl-some
@@ -1694,7 +1700,8 @@ is added at the beginning of a block to indicate it is the beginning."
         (if (or (not split-blocks) (< i (caar split-blocks)))
             (if make-time-grid-line
                 (push (propertize (make-string cell-width ? )
-                                  'face 'calfw-blocks-overline)
+                                  'face (list 'cfw:face-grid
+                                              'calfw-blocks-overline))
                       current-line-lst)
               (push (make-string cell-width ? ) current-line-lst))
           (while (and split-blocks (= i (caar split-blocks)))
@@ -1727,7 +1734,8 @@ is added at the beginning of a block to indicate it is the beginning."
         (setq prev-end end)))))
 
 (defun calfw-blocks--grid-line (n)
-  (propertize (make-string n ? ) 'face 'calfw-blocks-overline))
+  (propertize (make-string n ? ) 'face (cons 'cfw:face-grid
+                                             'calfw-blocks-overline)))
 
 (defun calfw-blocks-dest-ol-today-set (dest)
   "[internal] Put a highlight face on today."
