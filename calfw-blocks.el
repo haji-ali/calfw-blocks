@@ -1734,7 +1734,7 @@ is added at the beginning of a block to indicate it is the beginning."
         (setq prev-end end)))))
 
 (defun calfw-blocks--grid-line (n)
-  (propertize (make-string n ? ) 'face (cons 'cfw:face-grid
+  (propertize (make-string n ? ) 'face (list 'cfw:face-grid
                                              'calfw-blocks-overline)))
 
 (defun calfw-blocks-dest-ol-today-set (dest)
