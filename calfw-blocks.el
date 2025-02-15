@@ -1533,7 +1533,7 @@ the region is not in the time section of the calendar."
   "Wrap TEXT to a fixed WIDTH without breaking words.
 Add HELP-TEXT in case the string is truncated."
   ;; Doesn't work with \n in text
-  (let* ((lines (string-split text "\n"))
+  (let* ((lines (split-string text "\n"))
          (line-n (1- (min max-lines (length lines))))
          (last-line (nth line-n lines))
          ellips)
@@ -1959,6 +1959,7 @@ events are not displayed is shown."
 (define-minor-mode calfw-blocks-overlapping-mode
   "Allow blocks to overlap in calfw-blocks."
   :global t
+  :group 'calfw-blocks
   :init-value nil
   (dolist (ad '((calfw-blocks--get-block-positions
                  . calfw-blocks--get-overlapping-block-positions)
@@ -1974,6 +1975,7 @@ events are not displayed is shown."
 (define-minor-mode calfw-blocks-mode
   "Enable calfw view as blocks."
   :global t
+  :group 'calfw-blocks
   :init-value nil
   (let ((fn-ad (if calfw-blocks-mode
                    'advice-add
