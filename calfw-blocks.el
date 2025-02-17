@@ -678,7 +678,7 @@ faces, the faces are remained."
        (max-hour (or (cdr-safe calfw-blocks-nonshrinking-hours) -1))
        (day-columns
    (cl-loop with cell-width      = (cfw:k 'cell-width param)
-                 with show-times      = (make-vector 24 nil)
+                 ;; with show-times      = (make-vector 24 nil)
             with days            = (or days (cfw:k 'days model))
             with content-fun     = (or content-fun
                                        'cfw:render-event-days-overview-content)
@@ -699,9 +699,9 @@ faces, the faces are remained."
                  for cfw-contents = (cfw:model-get-contents-by-date date model)
                  do (cl-loop for evnt in cfw-contents
                              for interval = (calfw-blocks-get-time-interval evnt)
-                             for start-hour = (caar interval)
-                             for end-hour = (cadr interval)
-                             for end-minute = (cddr interval)
+                             ;; for start-hour = (caar interval)
+                             ;; for end-hour = (cadr interval)
+                             ;; for end-minute = (cddr interval)
                              do
                              (setq
                               min-hour (min min-hour (caar interval))
@@ -1610,6 +1610,8 @@ is added at the beginning of a block to indicate it is the beginning."
                         ;; while preserving text properties
                         ;;
                         ;; (calfw-blocks--remove-unicode-chars block-string)
+                        ;; TODO: Adjust text/faces based on status, state (if
+                        ;; tentative) and if recurring (add a symbol)
                         (prog1
                             block-string
                           (add-face-text-property 0 (length block-string)
@@ -1850,7 +1852,7 @@ events are not displayed is shown."
                                   for x-horz = (caddr x)
                                   for sx = (car x-horz)
                                   do (progn
-                                       (if (> sx start)
+                               (when (> sx start)
                                            (push (list start sx
                                                        cur-intersection)
                                                  intervals))
@@ -1861,17 +1863,23 @@ events are not displayed is shown."
                                                  cur-intersection nil)
                                          (setq cur-intersection x
                                                start (1+ sx))))
-                                  finally do (push
+                          finally do (when (> cell-width start)
+                                       (push
                                               (list start cell-width
                                                     cur-intersection)
-                                              intervals)
+                                        intervals))
                                   finally return
                                   (cl-sort intervals
                                            '> ;; Get largest intervals first
                                            :key
                                            (lambda (int) ;; Gets width
                                      (- (cadr int) (car int))))))
-                        (int (car-safe intervals)))
+                        (int (car-safe intervals))
+                        (valid-intervals (cl-count-if
+                                          (lambda (int) ;; Gets width
+                                            (>= (- (cadr int) (car int))
+                                                calfw-blocks-min-block-width))
+                                          intervals)))
                    (cond
                     ((null int)
                      ;; If we have zero intervals, we're screwed. Need to
@@ -1882,7 +1890,12 @@ events are not displayed is shown."
                           (< (- (cadr int) (car int))
                              (* rem calfw-blocks-min-block-width)))
                      ;; If we have one interval of insufficient size, and more
-                     ;; than one event remaining, need to add an +more indicator
+                     ;; than one event remaining, need to add an +more
+                     ;; indicator.
+                     ;;
+                     ;; TODO: This is problematic if previous blocks have used
+                     ;; up all the remaining space. We should have really
+                     ;; replace the one before the current.
                      (let* ((x-vertical-pos (nth 1 l))
                             (exceeded-indicator
                              (list (propertize
@@ -1897,7 +1910,7 @@ events are not displayed is shown."
                     (t (push
                         (append l
                                 (list
-                                 (if (or (= rem 1) (> (length intervals) 1))
+                                 (if (or (= rem 1) (> valid-intervals 1))
                                      (butlast int)
                                    ;; Split the interval into equal parts
                                    (let* ((s (car int))
