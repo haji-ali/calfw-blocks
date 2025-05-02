@@ -670,6 +670,24 @@ faces, the faces are remained."
            (put-text-property i (1+ i) 'font-lock-face face ret)
            finally return ret))
 
+(defun calfw-blocks-model-get-contents-by-date (date model)
+  "Return a list of contents on the DATE."
+  ;; This is the same as `cfw:model-get-contents-by-date'
+  ;; excepts that it returns content if they are overlap with DATE
+  ;; rather than being precisely on DATE
+  (let ((contents (cfw:k 'contents model)))
+    (cdr
+     (cond
+      ((or (null date) (null contents)) nil)
+      (t (cl-loop for i in contents
+                  for start-date = (cfw:event-start-date (cadr i))
+                  for end-date = (cfw:event-end-date (cadr i))
+                  if (or
+                      (and (null end-date) (equal date (car i)))
+                      (cfw:date-between start-date end-date date))
+                  return i
+                  finally return nil))))))
+
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
                                                       days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
@@ -696,7 +714,9 @@ faces, the faces are remained."
             for ant          = (cfw:rt (cfw:contents-get date annotations)
                                        'cfw:face-annotation)
             for raw-periods  = (cfw:contents-get date raw-periods-all)
-                 for cfw-contents = (cfw:model-get-contents-by-date date model)
+                 for cfw-contents = (calfw-blocks-model-get-contents-by-date
+                                     ;; cfw:model-get-contents-by-date
+                                     date model)
                  do (cl-loop for evnt in cfw-contents
                              for interval = (calfw-blocks-get-time-interval evnt)
                              ;; for start-hour = (caar interval)
@@ -1328,7 +1348,14 @@ events are not displayed is shown."
   (let* ((interval (get-text-property 0 'calfw-blocks-interval line))
          (start (calfw-blocks--time-pair-to-float (car interval)))
          (end (calfw-blocks--time-pair-to-float (cdr interval))))
-    (list start end)))
+    (if (<= start end)
+        (list start end)
+      ;; TODO: isssue#108
+      ;; If start is before end, it means this event extends to next day
+      ;; end it at the end of the current day for now, but we really need a
+      ;; better way so that we can also make it start from the beginning.
+      (list start
+            (calfw-blocks--time-pair-to-float '(23 59))))))
 
 (defun calfw-blocks--get-block-vertical-position (p)
   "[inclusive, exclusive)"
@@ -1690,7 +1717,7 @@ is added at the beginning of a block to indicate it is the beginning."
          ;;                            lines))
          (block-positions (calfw-blocks--get-block-positions interval-lines cell-width))
          (split-blocks (seq-sort (lambda (a b) (< (car a) (car b)))
-                                 (mapcan (lambda (bf) (calfw-blocks-split-single-block bf))
+                                 (mapcan #'calfw-blocks-split-single-block
                                          block-positions)))
          (rendered-lines '())
          ;; (curr-time-grid-line (calfw-blocks--current-time-vertical-position))
@@ -2018,7 +2045,8 @@ events are not displayed is shown."
 
     (dolist (fn '(cfw:navi-next-month-command
               cfw:navi-previous-month-command
-              cfw:refresh-calendar-buffer))
+                  cfw:refresh-calendar-buffer
+                  cfw:event-toggle-calendar))
       (funcall fn-ad fn :around
                #'calfw-blocks-perserve-buffer-view-advice))))
 
