@@ -115,6 +115,15 @@ hours."
   :group 'calfw-blocks
   :type 'list)
 
+(defcustom calfw-blocks-now-indicator-char
+  (propertize "@"
+              'face
+              'cfw:face-today-title
+              'cfw:current-time-marker t)
+  "A string containing a single character to mark current time."
+  :group 'calfw-blocks
+  :type 'string)
+
 (defvar calfw-blocks-event-start (char-to-string cfw:fchar-vertical-line)
   "String to add at beginning of event, if not on cell start.")
 
@@ -143,6 +152,11 @@ hours."
 
 (defface calfw-blocks-now-indicator
   '((t (:strike-through "red")))
+  "Face for current time indicator."
+  :group 'calfw-blocks)
+
+(defface calfw-blocks-past-now-indicator
+  '((t (:strike-through "#883333")))
   "Face for current time indicator."
   :group 'calfw-blocks)
 
@@ -1031,7 +1045,7 @@ interval are hidden."
                       for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-event-blocks
-                                  lines cell-width (1- cell-height))))
+                                  date lines cell-width (1- cell-height))))
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
              with time-columns = (calfw-blocks-time-column cell-height)
              for i from 1 to cell-height
@@ -1060,7 +1074,7 @@ interval are hidden."
              for show-cur-time = (and
                                   calfw-blocks-show-current-time-indicator
                                   today-shown
-                                  (= (1- i)
+                                  (= i
                                      (if shrunk-hour
                                          ;; If hour is shrunk, make sure
                                          ;; current time is displayed on the
@@ -1091,7 +1105,7 @@ interval are hidden."
                        (cl-loop for day-rows in breaked-day-columns
                                 for date = (car day-rows)
                                 for row = (nth i day-rows)
-                                collect
+                                for segment =
                                 (concat
                                  (if (and calfw-blocks-show-time-grid
                                           calfw-blocks-time-grid-lines-on-top
@@ -1100,21 +1114,30 @@ interval are hidden."
                                           (not (eq date earliest-date)))
                                      ?-
                                    (if (and show-cur-time (equal date today))
-                                       (propertize "@"
-                                                   'face
-                                                   'cfw:face-today-title
-                                                   'cfw:current-time-marker t)
+                                       calfw-blocks-now-indicator-char
                                      curVL))
                                  (cfw:tp
                                   (cfw:render-separator
                                    (cfw:render-left cell-width (and row (format "%s" row))))
-                                  'cfw:date date)))
-                       (list curVL EOL)))
+                                  'cfw:date date))
              do
              (when show-cur-time
                (add-face-text-property
-                time-width (length final-line) 'calfw-blocks-now-indicator
-                t final-line))
+                                   0 (length segment)
+                                   (if (cfw:date-less-equal-p today date)
+                                       'calfw-blocks-now-indicator
+                                     'calfw-blocks-past-now-indicator)
+                                   t segment))
+                                collect segment
+                                ;; issue#109
+                                ;; Apply face here instead of late
+                                )
+                       (list curVL EOL)))
+             do
+             ;; (when show-cur-time
+             ;;   (add-face-text-property
+             ;;    time-width (length final-line) 'calfw-blocks-now-indicator
+             ;;    t final-line))
              (when (and shrunk-hour
                         (> (mod (1- i) calfw-blocks-lines-per-hour)
                            (1- calfw-blocks-hour-shrink-size)))
@@ -1275,7 +1298,7 @@ corresponding to the elements of the group."
               groups)))
 
 
-(defun calfw-blocks--get-block-positions (lines cell-width)
+(defun calfw-blocks--get-block-positions (date lines cell-width)
   "Return LINES with assigned vertical and horizontal positions.
 
 Each element of the list is a list (event vertical-pos
@@ -1295,7 +1318,11 @@ events are not displayed is shown."
   (let* ((lines-lst
           (seq-sort (lambda (x y) (>= (car (nth 1 x))
                                       (car (nth 1 y))))
-                    (mapcar (lambda (x) (list x (calfw-blocks--get-block-vertical-position x))) lines)))
+                    (mapcar (lambda (x)
+                              (list x
+                                    (calfw-blocks--get-block-vertical-position
+                                     date x)))
+                            lines)))
          (groups (calfw-blocks--get-intersection-groups lines-lst))
          (new-lines-lst nil)
          (added-indices nil))
@@ -1344,22 +1371,28 @@ events are not displayed is shown."
 (defun calfw-blocks--time-pair-to-float (p)
   (+ (car p) (/ (cadr p) 60.0)))
 
-(defun calfw-blocks--get-float-time-interval (line)
-  (let* ((interval (get-text-property 0 'calfw-blocks-interval line))
+(defun calfw-blocks--get-float-time-interval (date line)
+  (let* ((event (get-text-property 0 'cfw:event line))
+         (start-date (cfw:event-start-date event))
+         (end-date (cfw:event-end-date event))
+         (interval (get-text-property 0 'calfw-blocks-interval line))
          (start (calfw-blocks--time-pair-to-float (car interval)))
          (end (calfw-blocks--time-pair-to-float (cdr interval))))
-    (if (<= start end)
-        (list start end)
-      ;; TODO: isssue#108
-      ;; If start is before end, it means this event extends to next day
-      ;; end it at the end of the current day for now, but we really need a
-      ;; better way so that we can also make it start from the beginning.
-      (list start
-            (calfw-blocks--time-pair-to-float '(23 59))))))
+    (list
+     (calfw-blocks--time-pair-to-float
+      (if (equal start-date date)
+          (car interval)
+        ;; Should've started in an earlier date
+        '(0 0)))
+     (calfw-blocks--time-pair-to-float
+      (if (equal end-date date)
+          (cdr interval)
+        ;; Should end in a later date
+        '(23 59))))))
 
-(defun calfw-blocks--get-block-vertical-position (p)
+(defun calfw-blocks--get-block-vertical-position (date p)
   "[inclusive, exclusive)"
-  (let* ((float-interval (calfw-blocks--get-float-time-interval p))
+  (let* ((float-interval (calfw-blocks--get-float-time-interval date p))
          (start-time (calfw-blocks--time-pair-to-float
                       calfw-blocks-earliest-visible-time))
          ;; (minutes-per-line (/ 60 calfw-blocks-lines-per-hour))
@@ -1707,7 +1740,7 @@ is added at the beginning of a block to indicate it is the beginning."
                                    'cfw:render-line-breaker-wordwrap)))
     (cfw:render-break-lines all-day-lines cell-width cell-height)))
 
-(defun calfw-blocks-render-event-blocks (lines cell-width cell-height)
+(defun calfw-blocks-render-event-blocks (date lines cell-width cell-height)
   ""
   (let* ((interval-lines (seq-filter (lambda (line) (car (get-text-property 0 'calfw-blocks-interval
                                                                             line)))
@@ -1715,7 +1748,9 @@ is added at the beginning of a block to indicate it is the beginning."
          ;; (all-day-lines (seq-filter (lambda (line) (not (car (get-text-property 0 'calfw-blocks-interval
          ;;                                                                        line))))
          ;;                            lines))
-         (block-positions (calfw-blocks--get-block-positions interval-lines cell-width))
+         (block-positions (calfw-blocks--get-block-positions date
+                                                             interval-lines
+                                                             cell-width))
          (split-blocks (seq-sort (lambda (a b) (< (car a) (car b)))
                                  (mapcan #'calfw-blocks-split-single-block
                                          block-positions)))
@@ -1817,7 +1852,7 @@ event appears and the cfw:event structure."
     evs))
 
 
-(defun calfw-blocks--get-overlapping-block-positions (lines cell-width)
+(defun calfw-blocks--get-overlapping-block-positions (date lines cell-width)
   "Return LINES with assigned vertical and horizontal positions.
 
 Each element of the list is a list (event vertical-pos
@@ -1837,7 +1872,7 @@ events are not displayed is shown."
   (let* ((lines-lst
               (mapcar
                (lambda (x)
-                 (list x (calfw-blocks--get-block-vertical-position x)))
+             (list x (calfw-blocks--get-block-vertical-position date x)))
            lines))
          ;; Group by vertical start, sorting the groups in ascending order
          (groups (cl-sort (seq-group-by 'caadr lines-lst)
