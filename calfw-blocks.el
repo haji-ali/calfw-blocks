@@ -690,17 +690,18 @@ faces, the faces are remained."
   ;; excepts that it returns content if they are overlap with DATE
   ;; rather than being precisely on DATE
   (let ((contents (cfw:k 'contents model)))
-    (cdr
      (cond
       ((or (null date) (null contents)) nil)
-      (t (cl-loop for i in contents
-                  for start-date = (cfw:event-start-date (cadr i))
-                  for end-date = (cfw:event-end-date (cadr i))
+     (t
+      (cl-loop for i in contents
+               nconc
+               (cl-loop for j in (cdr i)
+                        for start-date = (cfw:event-start-date j)
+                        for end-date = (cfw:event-end-date j)
                   if (or
                       (and (null end-date) (equal date (car i)))
                       (cfw:date-between start-date end-date date))
-                  return i
-                  finally return nil))))))
+                        collect j))))))
 
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
                                                       days content-fun do-weeks)
@@ -732,7 +733,13 @@ faces, the faces are remained."
                                      ;; cfw:model-get-contents-by-date
                                      date model)
                  do (cl-loop for evnt in cfw-contents
-                             for interval = (calfw-blocks-get-time-interval evnt)
+                             for interval =
+                             (if (equal (cfw:event-start-date evnt)
+                                        (cfw:event-end-date evnt))
+                                 (calfw-blocks-get-time-interval evnt)
+                               ;; If the start/end dates are not equal, we
+                               ;; need to expand the whole timeline
+                               '((0 0) . (23 59)))
                              ;; for start-hour = (caar interval)
                              ;; for end-hour = (cadr interval)
                              ;; for end-minute = (cddr interval)
@@ -992,7 +999,7 @@ interval are hidden."
                       for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-all-day-events
-                                  lines cell-width (1- cell-height))))
+                                  lines cell-width cell-height)))
              with all-day-columns-height = ;;(seq-max (mapcar 'length
              (seq-max (mapcar (lambda (x)
                                 (max
@@ -1045,7 +1052,7 @@ interval are hidden."
                       for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-event-blocks
-                                  date lines cell-width (1- cell-height))))
+                                  date lines cell-width cell-height)))
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
              with time-columns = (calfw-blocks-time-column cell-height)
              for i from 1 to cell-height
@@ -1712,9 +1719,11 @@ is added at the beginning of a block to indicate it is the beginning."
                     ;;                          'cfw:face-default-content)
                     ;;                         t tmp)
                     (when (= i 0)
+                      ;; issue#108 Check if the starting date is correct one
                       (add-face-text-property 0 (length tmp)
                                               'calfw-blocks-overline t tmp))
                     (when (= i (- block-height 1))
+                      ;; issue#108 Check if the end date is correct one
                       (add-face-text-property 0 (length tmp)
                                               'calfw-blocks-underline t tmp))
                     (when is-exceeded-indicator
