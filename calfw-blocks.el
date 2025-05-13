@@ -991,9 +991,7 @@ interval are hidden."
                              1 calfw-blocks-fchar-bottom-right-corner)
                             EOL)
                            'cfw:face-grid))))
-         (earliest-date (caar day-columns))
-         ;; (curr-time-linum (calfw-blocks--current-time-vertical-position))
-         )
+         (earliest-date (caar day-columns)))
     (cl-loop with breaked-all-day-columns =
              (cl-loop for day-rows in day-columns
                       for (date _ . lines) = day-rows
@@ -1081,7 +1079,7 @@ interval are hidden."
              for show-cur-time = (and
                                   calfw-blocks-show-current-time-indicator
                                   today-shown
-                                  (= i
+                                  (= (1- i)
                                      (if shrunk-hour
                                          ;; If hour is shrunk, make sure
                                          ;; current time is displayed on the
@@ -1413,14 +1411,14 @@ events are not displayed is shown."
                                           (- interval-end start-time))))))
 
 (defun calfw-blocks--current-time-vertical-position ()
+  "Returns vertical position of current time, starting from 0."
   (let* ((start-time (calfw-blocks--time-pair-to-float
                       calfw-blocks-earliest-visible-time))
          (curr-time (decode-time (current-time)))
          (curr-hour (nth 2 curr-time))
          (curr-min (nth 1 curr-time))
          (time-float (+ curr-hour (/ curr-min 60.0))))
-    (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour
-                                      (- time-float start-time)))))
+    (truncate (* calfw-blocks-lines-per-hour (- time-float start-time)))))
 
 (defun calfw-blocks-point-to-time (&optional end-time)
   "Return the timestamp corresponding to point.
