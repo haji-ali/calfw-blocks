@@ -690,17 +690,17 @@ faces, the faces are remained."
   ;; excepts that it returns content if they are overlap with DATE
   ;; rather than being precisely on DATE
   (let ((contents (cfw:k 'contents model)))
-     (cond
-      ((or (null date) (null contents)) nil)
+    (cond
+     ((or (null date) (null contents)) nil)
      (t
       (cl-loop for i in contents
                nconc
                (cl-loop for j in (cdr i)
                         for start-date = (cfw:event-start-date j)
                         for end-date = (cfw:event-end-date j)
-                  if (or
-                      (and (null end-date) (equal date (car i)))
-                      (cfw:date-between start-date end-date date))
+                        if (if (null end-date)
+                               (equal date (car i))
+                             (cfw:date-between start-date end-date date))
                         collect j))))))
 
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
@@ -1390,7 +1390,8 @@ events are not displayed is shown."
         ;; Should've started in an earlier date
         '(0 0)))
      (calfw-blocks--time-pair-to-float
-      (if (equal end-date date)
+      (if (or (null end-date)
+              (equal end-date date))
           (cdr interval)
         ;; Should end in a later date
         '(23 59))))))
