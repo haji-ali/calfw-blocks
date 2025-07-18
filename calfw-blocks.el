@@ -115,6 +115,14 @@ hours."
   :group 'calfw-blocks
   :type 'list)
 
+(defcustom calfw-blocks-variable-blocks t
+  "Whether or not to have block with different sizes.
+If non-nil, blocks in shrunk hours will not be expanded. See
+`calfw-blocks-hour-shrink-size' and
+`calfw-blocks-nonshrinking-hours'."
+  :group 'calfw-blocks
+  :type 'list)
+
 (defcustom calfw-blocks-now-indicator-char
   (propertize "@"
               'face
@@ -707,8 +715,8 @@ faces, the faces are remained."
                                                       days content-fun do-weeks)
   "[internal] Insert calendar cells for the linear views."
   (let*
-      ((min-hour (or (car-safe calfw-blocks-nonshrinking-hours) 25))
-       (max-hour (or (cdr-safe calfw-blocks-nonshrinking-hours) -1))
+      ((min-hour (or (car-safe calfw-blocks-nonshrinking-hours) 0))
+       (max-hour (or (cdr-safe calfw-blocks-nonshrinking-hours) 23))
        (day-columns
         (cl-loop with cell-width      = (cfw:k 'cell-width param)
                  ;; with show-times      = (make-vector 24 nil)
@@ -732,26 +740,46 @@ faces, the faces are remained."
                  for cfw-contents = (calfw-blocks-model-get-contents-by-date
                                      ;; cfw:model-get-contents-by-date
                                      date model)
-                 do (cl-loop for evnt in cfw-contents
-                             for interval =
-                             (if (equal (cfw:event-start-date evnt)
-                                        (cfw:event-end-date evnt))
-                                 (calfw-blocks-get-time-interval evnt)
-                               ;; If the start/end dates are not equal, we
-                               ;; need to expand the whole timeline
-                               '((0 0) . (23 59)))
-                             ;; for start-hour = (caar interval)
-                             ;; for end-hour = (cadr interval)
-                             ;; for end-minute = (cddr interval)
+                 do (cl-loop
+                     with min-block = (* min-hour calfw-blocks-lines-per-hour)
+                     with max-block = (* max-hour calfw-blocks-lines-per-hour)
+                     for evnt in cfw-contents
+                     for pos = (if (or
+                                    calfw-blocks-variable-blocks
+                                    (equal (cfw:event-start-date evnt)
+                                           (cfw:event-end-date evnt)))
+                                   (calfw-blocks--get-block-vertical-position
+                                nil evnt)
+                                 ;; If the start/end dates are not equal, we
+                                 ;; need to expand the whole timeline
+                                 (list 0 (* 24 calfw-blocks-lines-per-hour)))
                              do
-                             (setq
-                              min-hour (min min-hour (caar interval))
-                              max-hour (max max-hour
-                                            ;; If the minute is 0, substrct
-                                            ;; from hour.
-                                            (- (cadr interval)
-                                               (if (= (caddr interval) 0) 1
-                                                 0)))))
+                     (let ((start (car pos))
+                           (end (cadr pos)))
+                       (unless (and calfw-blocks-variable-blocks
+                                    (eq (mod start
+                                             calfw-blocks-lines-per-hour)
+                                        0))
+                         (setq min-block (min min-block start))
+                         (setq max-block (max max-block start)))
+                       (unless (and
+                                calfw-blocks-variable-blocks
+                                (eq
+                                 (mod end
+                                      calfw-blocks-lines-per-hour)
+                                 (1- calfw-blocks-lines-per-hour)))
+                         (setq min-block (min min-block end))
+                         (setq max-block (max max-block end))))
+                     finally
+                     (setq min-hour
+                           (min min-hour
+                                (floor (/ min-block
+                                          (float calfw-blocks-lines-per-hour))))
+                           max-hour
+                           (max max-hour
+                                (1-
+                                 (ceiling (/ max-block
+                                             (float calfw-blocks-lines-per-hour)))))))
                  for raw-contents = (sort (funcall content-fun cfw-contents) sorter)
                  for prs-contents = (append (if do-weeks
                                                 (calfw-blocks-render-periods
@@ -1050,7 +1078,9 @@ interval are hidden."
                       for (date _ . lines) = day-rows
                       collect
                       (cons date (calfw-blocks-render-event-blocks
-                                  date lines cell-width cell-height)))
+                                  date
+                                  hour-interval
+                                  lines cell-width cell-height)))
              with curr-time-linum = (calfw-blocks--current-time-vertical-position)
              with time-columns = (calfw-blocks-time-column cell-height)
              for i from 1 to cell-height
@@ -1133,10 +1163,7 @@ interval are hidden."
                                        'calfw-blocks-now-indicator
                                      'calfw-blocks-past-now-indicator)
                                    t segment))
-                                collect segment
-                                ;; issue#109
-                                ;; Apply face here instead of late
-                                )
+                                collect segment)
                        (list curVL EOL)))
              do
              ;; (when show-cur-time
@@ -1326,7 +1353,8 @@ events are not displayed is shown."
                     (mapcar (lambda (x)
                               (list x
                                     (calfw-blocks--get-block-vertical-position
-                                     date x)))
+                                     date
+                                     (get-text-property 0 'cfw:event x))))
                             lines)))
          (groups (calfw-blocks--get-intersection-groups lines-lst))
          (new-lines-lst nil)
@@ -1376,29 +1404,31 @@ events are not displayed is shown."
 (defun calfw-blocks--time-pair-to-float (p)
   (+ (car p) (/ (cadr p) 60.0)))
 
-(defun calfw-blocks--get-float-time-interval (date line)
-  (let* ((event (get-text-property 0 'cfw:event line))
+(defun calfw-blocks--get-float-time-interval (date event)
+  (let* ((interval (calfw-blocks-get-time-interval event))
          (start-date (cfw:event-start-date event))
          (end-date (cfw:event-end-date event))
-         (interval (get-text-property 0 'calfw-blocks-interval line))
          (start (calfw-blocks--time-pair-to-float (car interval)))
          (end (calfw-blocks--time-pair-to-float (cdr interval))))
     (list
      (calfw-blocks--time-pair-to-float
-      (if (equal start-date date)
+      (if (or (null date)
+              (equal start-date date))
           (car interval)
         ;; Should've started in an earlier date
         '(0 0)))
      (calfw-blocks--time-pair-to-float
-      (if (or (null end-date)
+      (if (or
+           (null date)
+           (null end-date)
               (equal end-date date))
           (cdr interval)
         ;; Should end in a later date
         '(23 59))))))
 
-(defun calfw-blocks--get-block-vertical-position (date p)
+(defun calfw-blocks--get-block-vertical-position (date event)
   "[inclusive, exclusive)"
-  (let* ((float-interval (calfw-blocks--get-float-time-interval date p))
+  (let* ((float-interval (calfw-blocks--get-float-time-interval date event))
          (start-time (calfw-blocks--time-pair-to-float
                       calfw-blocks-earliest-visible-time))
          ;; (minutes-per-line (/ 60 calfw-blocks-lines-per-hour))
@@ -1645,7 +1675,7 @@ Add HELP-TEXT in case the string is truncated."
                      'calfw-blocks-cancelled-event-bg
                      'calfw-blocks-cancelled-event))))))
 
-(defun calfw-blocks-split-single-block (date block)
+(defun calfw-blocks-split-single-block (date hour-interval block)
   "Split event BLOCK into lines of width CELL-WIDTH.
 
 BLOCK is expected to contain elements of the form (event
@@ -1653,6 +1683,10 @@ vertical-pos horizontal-pos). Event is a string, vertical-pos and
 horizontal-pos are two element lists representing half open
 intervals. See `calfw-blocks--get-block-positions' for more
 details about vertical-pos and horizontal-pos.
+
+BLOCK-INTERVAL is a const (START . END). Lines outside this
+interval are assumed to be of height
+`calfw-blocks-hour-shrink-size'.
 
 An overline is added to the first line of an event block. A character
 is added at the beginning of a block to indicate it is the beginning."
@@ -1663,7 +1697,29 @@ is added at the beginning of a block to indicate it is the beginning."
          (block-vertical-pos (cadr block))
          (block-horizontal-pos (caddr block))
          (block-width (- (cadr block-horizontal-pos) (car block-horizontal-pos)))
-         (block-height (- (cadr block-vertical-pos) (car block-vertical-pos)))
+         intervals
+         (block-height
+          (if calfw-blocks-variable-blocks
+              (progn
+                (setq intervals
+                      (let* ((x (car block-vertical-pos))
+                             (y (cadr block-vertical-pos))
+                             (w (* (car hour-interval) calfw-blocks-lines-per-hour))
+                             (z (* (1+ (cdr hour-interval)) calfw-blocks-lines-per-hour)))
+                        (let* ((a (max x (min w y)))
+                               (b (min y (max z x)))
+                               (factor (/ calfw-blocks-lines-per-hour
+                                          calfw-blocks-hour-shrink-size)))
+                          (append
+                           (make-list (ceiling (/ (max (- a x) 0)
+                                                  (float calfw-blocks-lines-per-hour)))
+                                      factor)
+                           (make-list (max (- b a) 0) 1)
+                           (make-list (ceiling (/ (max (- y b) 0)
+                                                  (float calfw-blocks-lines-per-hour)))
+                                      factor)))))
+                (length intervals))
+            (- (cadr block-vertical-pos) (car block-vertical-pos))))
          (text-height (or
                        (car-safe (cdddr block))
                        block-height))
@@ -1697,9 +1753,9 @@ is added at the beginning of a block to indicate it is the beginning."
          (is-exceeded-indicator (get-text-property
                                  0 'calfw-blocks-exceeded-indicator
                                  block-string))
-         tmp)
+         tmp (cnt 0))
     (dolist (i (number-sequence 0 (- block-height 1)))
-      (push (list (+ (car block-vertical-pos) i)
+      (push (list (+ (car block-vertical-pos) cnt)
                   (prog1
                       (setq tmp
                             (propertize
@@ -1738,7 +1794,22 @@ is added at the beginning of a block to indicate it is the beginning."
                     ;;   (add-face-text-property 1 2 '(:box (:line-width (0 . 0))) t tmp))
                     ))
             rendered-block)
-      (setq block-lines (cdr block-lines)))
+      (setq cnt (1+ cnt))
+      ;; Need to pad the lines up to full block-height which will be skipped
+      ;; later.
+      (when intervals
+        (dotimes (j (min (1- (car intervals))
+                         (- (- (cadr block-vertical-pos)
+                               (car block-vertical-pos))
+                            cnt)))
+            (push (list (+ (car block-vertical-pos) cnt)
+                        (propertize
+                         (string-pad "ignore" block-width)
+                         'calfw-blocks-horizontal-pos block-horizontal-pos))
+                  rendered-block)
+          (setq cnt (1+ cnt))))
+      (setq block-lines (cdr block-lines))
+      (setq intervals (cdr intervals)))
     (reverse rendered-block)))
 
 (defun calfw-blocks-render-all-day-events (lines cell-width cell-height)
@@ -1751,7 +1822,7 @@ is added at the beginning of a block to indicate it is the beginning."
                                    'cfw:render-line-breaker-wordwrap)))
     (cfw:render-break-lines all-day-lines cell-width cell-height)))
 
-(defun calfw-blocks-render-event-blocks (date lines cell-width cell-height)
+(defun calfw-blocks-render-event-blocks (date hour-interval lines cell-width cell-height)
   ""
   (let* ((interval-lines (seq-filter (lambda (line) (car (get-text-property 0 'calfw-blocks-interval
                                                                             line)))
@@ -1766,7 +1837,8 @@ is added at the beginning of a block to indicate it is the beginning."
                                  (mapcan
                                   (apply-partially
                                    #'calfw-blocks-split-single-block
-                                   date)
+                                   date
+                                   hour-interval)
                                   block-positions)))
          (rendered-lines '())
          ;; (curr-time-grid-line (calfw-blocks--current-time-vertical-position))
@@ -1886,7 +1958,9 @@ events are not displayed is shown."
   (let* ((lines-lst
           (mapcar
            (lambda (x)
-             (list x (calfw-blocks--get-block-vertical-position date x)))
+             (list x (calfw-blocks--get-block-vertical-position
+                      date
+                      (get-text-property 0 'cfw:event x))))
            lines))
          ;; Group by vertical start, sorting the groups in ascending order
          (groups (cl-sort (seq-group-by 'caadr lines-lst)
