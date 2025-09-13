@@ -6,7 +6,7 @@
 ;; Maintainer: Al Haji-Ali <abdo.haji.ali at gmail.com>
 ;; Created: Author
 ;; Version: 0.0.2
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.1") (calfw "2.0"))
 ;; Homepage: https://github.com/haji-ali/maccalfw
 ;; Keywords: calendar
 
@@ -34,12 +34,12 @@
 (defun calfw-blocks--cfw-org-get-timerange (text)
   "Return a range object (begin end text).
 If TEXT does not have a range, return nil."
-  ;; TODO: This is exactly the same as `cfw:org-get-timerange' except that
+  ;; TODO: This is exactly the same as `calfw-org-get-timerange' except that
   ;; it fixed cur-day = 0
-  (let* ((dotime (cfw:org-tp text 'dotime)))
+  (let* ((dotime (calfw-org--tp text 'dotime)))
     (and (stringp dotime) (string-match org-ts-regexp dotime)
          (let ((date-string  (match-string 1 dotime))
-               (extra (cfw:org-tp text 'extra)))
+               (extra (calfw-org--tp text 'extra)))
            (if (and extra (string-match "(\\([0-9]+\\)/\\([0-9]+\\)): " extra))
                (let* (;; (cur-day (string-to-number
                       ;;           (match-string 1 extra)))
@@ -54,20 +54,20 @@ If TEXT does not have a range, return nil."
                        (calendar-gregorian-from-absolute (time-to-days end-date)) text)))))))
 
 (defun calfw-blocks-org-summary-format (item)
-  "Version of cfw:org-summary-format that adds time data needed to draw blocks."
-  (let* ((time-of-day (cfw:org-tp item 'time-of-day))
+  "Version of calfw-org-summary-format that adds time data needed to draw blocks."
+  (let* ((time-of-day (calfw-org--tp item 'time-of-day))
          (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
-         (duration (cfw:org-tp item 'duration))
+         (duration (calfw-org--tp item 'duration))
          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
                                                        (+ (nth 1 start-time) (mod duration 60)))
                      start-time))
          (time-str (and time-of-day
                         (format "%02i:%02i " (/ time-of-day 100) (% time-of-day 100))))
-         ;; (marker (cfw:org-tp item 'org-marker))
+         ;; (marker (calfw-org--tp item 'org-marker))
          ;; (buffer (and marker (marker-buffer marker)))
-         (text (cfw:org-extract-summary item))
-         (props (cfw:extract-text-props item 'face 'keymap))
-         (extra (cfw:org-tp item 'extra)))
+         (text (calfw-org--extract-summary item))
+         (props (calfw--extract-text-props item 'face 'keymap))
+         (extra (calfw-org--tp item 'extra)))
     (setq text (substring-no-properties text))
     (when (and extra (string-match (concat "^" org-deadline-string ".*") extra))
       (add-text-properties 0 (length text) (list 'face (org-agenda-deadline-face 1.0)) text))
@@ -99,7 +99,7 @@ If TEXT does not have a range, return nil."
      (apply 'propertize text props)
      ;; include org filename
      ;; (and buffer (concat " " (buffer-name buffer)))
-     'keymap cfw:org-text-keymap
+     'keymap calfw-org-text-keymap
      ;; Delete the display property, since displaying images will break our
      ;; table layout.
      'display nil
@@ -109,10 +109,10 @@ If TEXT does not have a range, return nil."
 
 ;; TODO: This should be shorter than the previous function.
 ;; (defun calfw-blocks-org-summary-format (old-fn item)
-;;   "Version of cfw:org-summary-format that adds time data needed to draw blocks."
-;;   (let* ((time-of-day (cfw:org-tp item 'time-of-day))
+;;   "Version of calfw-org-summary-format that adds time data needed to draw blocks."
+;;   (let* ((time-of-day (calfw-org--tp item 'time-of-day))
 ;;          (start-time (if time-of-day (list (/ time-of-day 100) (mod time-of-day 100))))
-;;          (duration (cfw:org-tp item 'duration))
+;;          (duration (calfw-org--tp item 'duration))
 ;;          (end-time (if (and start-time duration) (list (+ (nth 0 start-time) (/ duration 60))
 ;;                                                        (+ (nth 1 start-time) (mod duration 60)))
 ;;                      start-time)))
@@ -121,8 +121,8 @@ If TEXT does not have a range, return nil."
 ;;      'calfw-blocks-interval (if start-time (cons start-time end-time)))))
 
 
-(advice-add 'cfw:org-get-timerange
+(advice-add 'calfw-org-get-timerange
             :override 'calfw-blocks--cfw-org-get-timerange)
-(setq cfw:org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
+(setq calfw-org-schedule-summary-transformer 'calfw-blocks-org-summary-format)
 
 (provide 'calfw-blocks-org)
