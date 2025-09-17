@@ -135,6 +135,12 @@ If non-nil, blocks in shrunk hours will not be expanded. See
 (defvar calfw-blocks-event-start (char-to-string calfw-fchar-vertical-line)
   "String to add at beginning of event, if not on cell start.")
 
+(defvar calfw-blocks-period-left-cont "<"
+  "String to add at start of period which continue left.")
+
+(defvar calfw-blocks-period-right-cont ">"
+  "String to add  at start of period which continue right.")
+
 (defvar calfw-blocks-event-keymap nil)
 
 (defvar calfw-blocks-earliest-visible-time '(0 0)
@@ -914,9 +920,23 @@ b is the minute."
                                 (len (1+ (min (calfw-days-diff begin end)
                                               (calfw-days-diff begin end-date)
                                               (calfw-days-diff begin-date end)
-                                              (calfw-days-diff begin-date end-date)))))
+                                              (calfw-days-diff begin-date
+                                                               end-date))))
+                                (left (if (> (calfw-days-diff begin begin-date) 0)
+                                          calfw-blocks-period-left-cont
+                                        ""))
+                                (right
+                                 (if (> (calfw-days-diff end-date end) 0)
+                                     calfw-blocks-period-right-cont
+                                   "")))
                            (apply 'propertize
-                                  (calfw--render-left (+ (1- len) (* len cell-width)) content ? )
+                                  (concat
+                                   (calfw--render-left
+                                    (+ (1- len) (* len cell-width)
+                                       (- (length right)))
+                                    (concat left content)
+                                    ? )
+                                   right)
                                   'cfw:cell-span len
                                   props))))
                    (let* ((begin (nth 0 (cadr p)))
