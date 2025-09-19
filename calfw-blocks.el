@@ -1991,7 +1991,7 @@ events are not displayed is shown."
                                    (car g)
                                    (seq-sort
                                     (lambda (x y)
-                                      (> (- (cadadr x) (caadr x))
+                                      (< (- (cadadr x) (caadr x))
                                          (- (cadadr y) (caadr y))))
                                     (cdr g))))))
     (cl-loop
