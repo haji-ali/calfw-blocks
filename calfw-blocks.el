@@ -364,10 +364,11 @@ return an alist of rendering parameters."
      (calfw--rt
       (calfw-render-title-period begin-date end-date)
       'calfw-title-face)
-     EOL (calfw-blocks-render-toolbar total-width
-                                      (calfw-component-view component)
-                                      (calfw-blocks-navi-previous-nday-week-command n)
-                                      (calfw-blocks-navi-next-nday-week-command n))
+     EOL (calfw--render-toolbar total-width
+                                (calfw-component-view component)
+                                ;; (calfw-blocks-navi-previous-nday-week-command n)
+                                ;; (calfw-blocks-navi-next-nday-week-command n)
+                                )
      EOL hline)
     ;; time header
     (insert (calfw--rt (calfw--render-right time-width "    ")
@@ -579,24 +580,6 @@ Moves forward if NUM is negative."
       (calfw-navi-next-day-command (* (- calfw-blocks-days-per-view)
                                     (or num 1)))))
 
-(defun calfw-blocks--cfw-refresh-calendar-buffer (no-resize)
-  "Clear the calendar and render again.
-With prefix arg NO-RESIZE, don't fit calendar to window size."
-  (interactive "P")
-  (calfw-blocks-perserve-buffer-view
-      (let ((cp (calfw-cp-get-component)))
-        (when cp
-          (unless no-resize
-            (calfw-cp-resize cp (window-width) (window-height)))
-          (cl-loop for s in (calfw-cp-get-contents-sources cp t)
-                   for f = (calfw-source-update s)
-                   if f do (funcall f))
-          (cl-loop for s in (calfw-cp-get-annotation-sources cp)
-                   for f = (calfw-source-update s)
-                   if f do (funcall f))
-          (calfw--cp-update cp)))))
-
-
 (defun calfw-blocks-navi-goto-now ()
   "Move the cursor to today."
   (interactive)
@@ -618,43 +601,6 @@ Moves forward if NUM is negative."
   (lambda (&optional num)
     (interactive "p")
     (calfw-navi-next-day-command (* (- n) (or num 1)))))
-
-(defvar calfw-blocks-toolbar-views
-  '(("Day" . block-day)
-    ("3-Day" . block-3-day)
-    ("Week" . block-week)
-    ("Two Week" . two-weeks)
-    ("Month" . month)))
-
-(defun calfw-blocks-render-toolbar (width current-view prev-cmd next-cmd)
-  "[internal] Return a text of the toolbar.
-
-WIDTH is width of the toolbar. CURRENT-VIEW is a symbol of the
-current view type. This symbol is used to select the button faces
-on the toolbar. PREV-CMD and NEXT-CMD are the moving view
-command, such as `cfw:navi-previous(next)-month-command' and
-`cfw:navi-previous(next)-week-command'."
-  (let* ((prev (calfw--render-button " < " prev-cmd))
-         (today (calfw--render-button "Today" 'calfw-navi-goto-today-command))
-         (next (calfw--render-button " > " next-cmd))
-         (sp  " ")
-         (toolbar-text
-          (calfw--render-add-right
-           width (concat sp prev sp next sp today sp)
-           (cl-loop for (title . view) in calfw-blocks-toolbar-views
-                    for fn = (let ((view view)) ;; Enable lexical-binding
-                               (lambda ()
-                                 (interactive)
-                                 (calfw-cp-set-view (calfw-cp-get-component)
-                                                  view)))
-                    concat
-                    (calfw--render-button
-                     title
-                     fn
-                     (eq current-view view))
-                    concat
-                    sp))))
-    (calfw--render-default-content-face toolbar-text 'calfw-toolbar-face)))
 
 (let ((lexical-binding t))
   (cl-loop for a from 0 to 5
@@ -1935,9 +1881,10 @@ is added at the beginning of a block to indicate it is the beginning."
           (funcall (calfw--cp-dispatch-view-impl
                     (calfw-component-view component))
                    component)))
-      (if (eq (calfw-component-view component) 'block-week)
-          (calfw-blocks-dest-ol-today-set dest)
-        (when calfw-highlight-today (calfw--dest-ol-today-set dest)))
+      (if (eq (calfw-component-view component) 'block-week) ;; ADDED
+          (calfw-blocks-dest-ol-today-set dest)             ;; ADDED
+        (when calfw-highlight-today
+          (calfw--dest-ol-today-set dest)))
       (when initial-date
         (calfw-cp-goto-date component initial-date))
       (calfw-dest-after-update dest)
@@ -2179,14 +2126,19 @@ events are not displayed is shown."
                     (block-7-day       .  calfw-blocks-view-block-7-day)))
       (funcall fn-list 'calfw-cp-dipatch-funcs dispatch))
 
-    (funcall fn-ad 'calfw--render-toolbar
-            :override 'calfw-blocks-render-toolbar)
-    (funcall fn-ad 'calfw--cp-update :override 'calfw-blocks--cfw-cp-update)
-    (funcall fn-ad 'calfw-refresh-calendar-buffer
-            :override 'calfw-blocks--cfw-refresh-calendar-buffer)
+    (setq calfw-toolbar-buttons
+          '((("Today" . calfw-navi-goto-today-command))
+            .
+            (("Day" . (:view block-day))
+             ("3-Day" . (:view block-3-day))
+             ("Week" . (:view block-week))
+             ("Two Week" . (:view two-weeks))
+             ("Month" . (:view month)))))
 
-    (dolist (fn '(calfw-navi-next-month-command
-                  calfw-navi-previous-month-command
+    (funcall fn-ad 'calfw--cp-update :override 'calfw-blocks--cfw-cp-update)
+
+    (dolist (fn '(calfw-navi-next-view
+                  calfw-navi-prev-view
                   calfw-refresh-calendar-buffer
                   calfw-event-toggle-calendar))
       (funcall fn-ad fn :around
