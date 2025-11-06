@@ -602,11 +602,6 @@ Moves forward if NUM is negative."
     (interactive "p")
     (calfw-navi-next-day-command (* (- n) (or num 1)))))
 
-(let ((lexical-binding t))
-  (cl-loop for a from 0 to 5
-           collect (let ((a a))
-                     (lambda nil a))))
-
 (defun calfw-blocks-render-calendar-cells-block-weeks (model param title-func)
   "[internal] Insert calendar cells for week based views."
   (cl-loop for week in (calfw--k 'weeks model) do
@@ -616,31 +611,11 @@ Moves forward if NUM is negative."
                                                     'calfw-blocks-render-content
                                                     t)))
 
-(defun calfw-blocks-default-sorter (x y)
-  "Default sorter for events in calfw-blocks.
-Using this function to sort by start time first."
-  (if-let ((ev-x (get-text-property 0 'cfw:event x))
-           (ev-y (get-text-property 0 'cfw:event y)))
-      (> (calfw-blocks-compare-time (calfw-event-start-time ev-x)
-                                    (calfw-event-start-time ev-y))
-         0)
-    (string-lessp x y)))
-
 (defun calfw-blocks-render-default-content-face (str &optional default-face)
   "[internal] Put the default content face. If STR has some
 faces, the faces are remained."
-  (cl-loop
-           with ret = (substring str 0)
-   for i from 0 below (length str)
-   for face = (or default-face
-                           (calfw-blocks--status-face str 'background)
-                           (calfw--render-get-face-content
-                            str 'calfw-default-content-face))
-           unless (get-text-property i 'face ret)
-           do
-           (put-text-property i (1+ i) 'face face ret)
-           (put-text-property i (1+ i) 'font-lock-face face ret)
-           finally return ret))
+  (calfw--render-default-content-face
+   str (or default-face (calfw-blocks--status-face str 'background))))
 
 (defun calfw-blocks-model-get-contents-by-date (date model)
   "Return a list of contents on the DATE."
@@ -654,6 +629,9 @@ faces, the faces are remained."
       (cl-loop for i in contents
                nconc
                (cl-loop for j in (cdr i)
+                        unless (calfw-event-p j)
+                        do
+                        (error "calfw-blocks requires raw calfw-events in the source.")
                         for start-date = (calfw-event-start-date j)
                         for end-date = (calfw-event-end-date j)
                         if (if (null end-date)
@@ -767,7 +745,8 @@ Modified to not truncate events. TODO"
                             (concat
                              (calfw-strtime begin) " - "
                              (calfw-strtime end) " : "
-                             content) width t)
+                             content)
+                            width)
                collect
                (if content
                    (calfw--rt
@@ -922,7 +901,7 @@ Fix erroneous width in last line, should be fixed upstream in calfw."
                for i from 0 below num
                for pdate = (calendar-gregorian-from-absolute (+ title-begin-abs i))
                for chopn = (+ (if (equal begin pdate) 1 0) (if (equal end pdate) 1 0))
-               for del = (truncate-string-to-width title (- cell-width chopn))
+               for del = (calfw--render-truncate title (- cell-width chopn))
                do
                (setq title (substring title (length del)))
                finally return
@@ -1515,11 +1494,18 @@ the region is not in the time section of the calendar."
               all-day-p)))))
 
 (defun calfw-blocks-generalized-substring (s start end props)
+  "Return a substring of S from START to END, padding with spaces if needed.
+
+If END is beyond the length of S, pad the result with spaces having
+PROPS.  If START is also beyond the length of S, return a string of
+spaces with length (- END START) having PROPS."
   (cond ((<= end (length s)) (substring s start end))
         ((< start (length s)) (concat (substring s start (length s))
                                       (apply
                                        #'propertize
-                                       (make-string (- (- end start) (- (length s) start)) ? )
+                                       (make-string (- (- end start)
+                                                       (- (length s) start))
+                                                    ? )
                                        props)))
         (t (apply
             #'propertize
@@ -1852,44 +1838,6 @@ is added at the beginning of a block to indicate it is the beginning."
   (propertize (make-string n ? ) 'face (list 'calfw-grid-face
                                              'calfw-blocks-overline-face)))
 
-(defun calfw-blocks-dest-ol-today-set (dest)
-  "[internal] Put a highlight face on today."
-  (let ((ols))
-    (calfw-dest-with-region dest
-      (calfw--find-all-by-date
-       dest (calendar-current-date)
-       (lambda (begin end)
-         (let ((overlay (make-overlay begin end)))
-           ;; This is the only difference
-           (if (eq 'calfw-day-title-face
-                   (get-text-property begin 'face))
-               (overlay-put overlay 'face
-                            'calfw-today-title-face))
-           (push overlay ols)))))
-    (setf (calfw-dest-today-ol dest) ols)))
-
-(defun calfw-blocks--cfw-cp-update (component &optional initial-date)
-  "[internal] Clear and re-draw the component content."
-  (let* ((buf (calfw-cp-get-buffer component))
-         (dest (calfw-component-dest component)))
-    (with-current-buffer buf
-      (calfw-dest-before-update dest)
-      (calfw--dest-ol-today-clear dest)
-      (let* ((buffer-read-only nil))
-        (calfw-dest-with-region dest
-          (calfw-dest-clear dest)
-          (funcall (calfw--cp-dispatch-view-impl
-                    (calfw-component-view component))
-                   component)))
-      (if (eq (calfw-component-view component) 'block-week) ;; ADDED
-          (calfw-blocks-dest-ol-today-set dest)             ;; ADDED
-        (when calfw-highlight-today
-          (calfw--dest-ol-today-set dest)))
-      (when initial-date
-        (calfw-cp-goto-date component initial-date))
-      (calfw-dest-after-update dest)
-      (calfw--cp-fire-update-hooks component))))
-
 (defun calfw-blocks-get-displayed-events ()
   "Return a list of displayed events in the current buffer.
 Each item in the list is a cons containing the first position the
@@ -2106,11 +2054,7 @@ events are not displayed is shown."
   :global t
   :group 'calfw-blocks
   :init-value nil
-  (let ((fn-ad (if calfw-blocks-mode
-                   'advice-add
-                 (lambda (symbol _ fn &rest _)
-                   (advice-remove symbol fn))))
-        (fn-list (if calfw-blocks-mode
+  (let ((fn-list (if calfw-blocks-mode
                      'add-to-list
                    (lambda (qlst item)
                      (set qlst (cl-delete
@@ -2118,12 +2062,12 @@ events are not displayed is shown."
                                 (symbol-value qlst)
                                 :test #'equal))))))
     (dolist (dispatch '((block-week        .  calfw-blocks-view-block-week)
-                    (block-day         .  calfw-blocks-view-block-day)
-                    (block-2-day       .  calfw-blocks-view-block-2-day)
-                    (block-3-day       .  calfw-blocks-view-block-3-day)
-                    (block-4-day       .  calfw-blocks-view-block-4-day)
-                    (block-5-day       .  calfw-blocks-view-block-5-day)
-                    (block-7-day       .  calfw-blocks-view-block-7-day)))
+                        (block-day         .  calfw-blocks-view-block-day)
+                        (block-2-day       .  calfw-blocks-view-block-2-day)
+                        (block-3-day       .  calfw-blocks-view-block-3-day)
+                        (block-4-day       .  calfw-blocks-view-block-4-day)
+                        (block-5-day       .  calfw-blocks-view-block-5-day)
+                        (block-7-day       .  calfw-blocks-view-block-7-day)))
       (funcall fn-list 'calfw-cp-dipatch-funcs dispatch))
 
     (setq calfw-toolbar-buttons
@@ -2133,14 +2077,17 @@ events are not displayed is shown."
              ("3-Day" . (:view block-3-day))
              ("Week" . (:view block-week))
              ("Two Week" . (:view two-weeks))
-             ("Month" . (:view month)))))
+             ("Month" . (:view month))))))
 
-    (funcall fn-ad 'calfw--cp-update :override 'calfw-blocks--cfw-cp-update)
-
+  (let ((fn-ad (if calfw-blocks-mode
+                   'advice-add
+                 (lambda (symbol _ fn &rest _)
+                   (advice-remove symbol fn)))))
     (dolist (fn '(calfw-navi-next-view
                   calfw-navi-prev-view
                   calfw-refresh-calendar-buffer
-                  calfw-event-toggle-calendar))
+                  calfw-event-toggle-calendar
+                  calfw-cp-set-view))
       (funcall fn-ad fn :around
                #'calfw-blocks-perserve-buffer-view-advice))))
 
