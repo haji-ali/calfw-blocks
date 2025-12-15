@@ -132,6 +132,11 @@ If non-nil, blocks in shrunk hours will not be expanded. See
   :group 'calfw-blocks
   :type 'string)
 
+(defcustom calfw-blocks-deduce-all-day t
+  "Whether to display events spanning the whole day as all-day events."
+  :group 'calfw-blocks
+  :type 'boolean)
+
 (defvar calfw-blocks-event-start (char-to-string calfw-fchar-vertical-line)
   "String to add at beginning of event, if not on cell start.")
 
@@ -617,27 +622,38 @@ faces, the faces are remained."
   (calfw--render-default-content-face
    str (or default-face (calfw-blocks--status-face str 'background))))
 
+(defmacro calfw-blocks--filter-contents (model-var &rest body)
+  "Collect events from MODEL-VAR for which BODY is non-nil.
+
+MODEL-VAR is a (MODEL VAR) list.  VAR is bound to each raw calfw event
+in the model contents, as if iterating over a flattened list.
+
+Signal an error if a non-event element is encountered."
+  (declare (indent 1) (debug t))
+  (let ((model (car model-var))
+        (var (cadr model-var)))
+    `(cl-loop for i in (calfw--k 'contents ,model)
+              nconc
+              (cl-loop for ,var in (cdr i)
+                       unless (calfw-event-p ,var)
+                       do
+                       (error "calfw-blocks requires raw calfw-events in the source.")
+                       when (progn ,@body)
+                       collect ,var))))
+
 (defun calfw-blocks-model-get-contents-by-date (date model)
   "Return a list of contents on the DATE."
-  ;; This is the same as `calfw-model-get-contents-by-date'
-  ;; excepts that it returns content if they are overlap with DATE
-  ;; rather than being precisely on DATE
-  (let ((contents (calfw--k 'contents model)))
-    (cond
-     ((or (null date) (null contents)) nil)
-     (t
-      (cl-loop for i in contents
-               nconc
-               (cl-loop for j in (cdr i)
-                        unless (calfw-event-p j)
-                        do
-                        (error "calfw-blocks requires raw calfw-events in the source.")
-                        for start-date = (calfw-event-start-date j)
-                        for end-date = (calfw-event-end-date j)
-                        if (if (null end-date)
-                               (equal date (car i))
-                             (calfw-date-between start-date end-date date))
-                        collect j))))))
+  ;; This is effectively the same as `calfw-model-get-contents-by-date'
+  ;; excepts that it returns content if they are overlap with DATE rather than
+  ;; being precisely on DATE
+  (and date
+       (calfw-blocks--filter-contents (model j)
+         (let ((start-date (calfw-event-start-date j))
+               (end-date (calfw-event-end-date j)))
+           (and (if (null end-date)
+                    (equal date (car i))
+                  (calfw-date-between start-date end-date date))
+                j)))))
 
 (defun calfw-blocks-render-calendar-cells-days (model param title-func &optional
                                                       days content-fun do-weeks)
@@ -663,7 +679,7 @@ faces, the faces are remained."
                  ;; for prs-hday = (if hday (mapcar (lambda (h) (calfw--rt h 'calfw-holiday-face)) hday))
                  for week-day     = (nth (% count 7) headers)
                  for ant          = (calfw--rt (calfw--contents-get date annotations)
-                                            'calfw-annotation-face)
+                                               'calfw-annotation-face)
                  for raw-periods  = (calfw--contents-get date raw-periods-all)
                  for cfw-contents = (calfw-blocks-model-get-contents-by-date
                                      ;; calfw-model-get-contents-by-date
@@ -677,11 +693,11 @@ faces, the faces are remained."
                                     (equal (calfw-event-start-date evnt)
                                            (calfw-event-end-date evnt)))
                                    (calfw-blocks--get-block-vertical-position
-                                nil evnt)
+                                    nil evnt)
                                  ;; If the start/end dates are not equal, we
                                  ;; need to expand the whole timeline
                                  (list 0 (* 24 calfw-blocks-lines-per-hour)))
-                             do
+                     do
                      (let ((start (car pos))
                            (end (cadr pos)))
                        (unless (and calfw-blocks-variable-blocks
@@ -709,13 +725,14 @@ faces, the faces are remained."
                                  (ceiling (/ max-block
                                              (float calfw-blocks-lines-per-hour)))))))
                  for raw-contents = (sort (funcall content-fun cfw-contents) sorter)
-                 for prs-contents = (append (if do-weeks
-                                                (calfw-blocks-render-periods
-                                                 date raw-periods cell-width model)
-                                              (calfw-blocks-render-periods-days
-                                               date raw-periods cell-width))
-                                            (mapcar 'calfw-blocks-render-default-content-face
-                                                    raw-contents))
+                 for prs-contents = (append
+                                     (if do-weeks
+                                         (calfw-blocks-render-periods
+                                          date raw-periods cell-width model)
+                                       (calfw-blocks-render-periods-days
+                                        date raw-periods cell-width))
+                                     (mapcar 'calfw-blocks-render-default-content-face
+                                             raw-contents))
                  for num-label = (if prs-contents
                                      (format "(%s)"
                                              (+ (length raw-contents)
@@ -725,7 +742,7 @@ faces, the faces are remained."
                              (funcall title-func date week-day hday)
                              (if num-label (concat " " num-label))
                              (if hday (concat " " (calfw--rt (substring hday 0)
-                                                          'calfw-holiday-face))))
+                                                             'calfw-holiday-face))))
                  collect
                  (cons date (cons (cons tday ant) prs-contents)))))
     (calfw-blocks-render-columns day-columns (cons min-hour max-hour) param)))
@@ -765,20 +782,39 @@ period is a pair containing the start and end of time of each event.
 create period-stacks on the each days.
 period-stack -> ((row-num . period) ... )"
   (let* (periods-each-days)
-    (cl-loop for (begin end event) in (calfw--k 'periods model)
-             for content = (if (calfw-event-p event)
-                               ;; (calfw-event-period-overview event)
-                               (propertize
-                                (calfw-event-period-overview event)
-                                'cfw:event event)
-                             event)
-             for period = (list begin end content
+    (cl-labels ((add-period
+                  (begin end event interval)
+                  (let* ((content (if (calfw-event-p event)
+                                      ;; (calfw-event-period-overview event)
+                                      (propertize
+                                       (calfw-event-period-overview event)
+                                       'cfw:event event)
+                                    event))
+                         (period
+                          (list begin end content
                                 (calfw--extract-text-props content 'face)
-                                (if (calfw-event-p event) (calfw-blocks-get-time-interval event) nil))
-             for row = (calfw--render-periods-get-min periods-each-days begin end)
-             do
-             (setq periods-each-days (calfw--render-periods-place
-                                      periods-each-days row period)))
+                                (if (and interval (calfw-event-p event))
+                                    (calfw-blocks-get-time-interval event)
+                                  nil)))
+                         (row (calfw--render-periods-get-min periods-each-days
+                                                             begin end)))
+                    (setq periods-each-days (calfw--render-periods-place
+                                             periods-each-days row period)))))
+      (cl-loop for (begin end event) in (calfw--k 'periods model)
+               do (add-period begin end event t))
+      (when calfw-blocks-deduce-all-day
+        (calfw-blocks--filter-contents (model event)
+          (let ((begin (if (equal (calfw-event-start-time event)
+                                  '(0 0))
+                           (calfw-event-start-date event)
+                         (calfw-date-after (calfw-event-start-date event) 1)))
+                (end (if (equal (calfw-event-end-time event)
+                                '(23 59))
+                         (calfw-event-end-date event)
+                       (calfw-date-before (calfw-event-end-date event) 1))))
+            (unless (<= (calfw-days-diff begin end) 0)
+              (add-period begin end event nil))
+            nil))))
     periods-each-days))
 
 (defun calfw-blocks-get-time-interval (event)
@@ -813,15 +849,17 @@ b is the minute."
                              'keymap calfw-blocks-event-keymap
                              'cfw:period t
                              'cfw:row-count (car p)
-                             'face (cons
-                                    'calfw-blocks-overline-face
+                             'face (append
+                                    '(;;calfw-blocks-overline-face
+                                      calfw-blocks-underline-face)
                                     face)
                              'font-lock-face face)
                             (nth 3 (cadr p))))
                     (interval (nth 4 (cadr p)))
                     (begintime (if interval (calfw-blocks-format-time (car interval))))
                     (endtime (if interval (calfw-blocks-format-time (cdr interval)))))
-               (if (or interval (get-text-property 0 'calfw-blocks-interval content)
+               (if (or interval
+                       (get-text-property 0 'calfw-blocks-interval content)
                        (not calfw-blocks-render-multiday-events))
                    (apply 'propertize
                           (if (and calfw-blocks-display-end-times
@@ -1870,12 +1908,17 @@ all blocks to have width at least `calfw-blocks-min-block-width'
 then some events are not displayed, and an indicator for how many
 events are not displayed is shown."
   (let* ((lines-lst
-          (mapcar
-           (lambda (x)
-             (list x (calfw-blocks--get-block-vertical-position
-                      date
-                      (get-text-property 0 'cfw:event x))))
-           lines))
+          (cl-loop for x in lines
+                   for ev = (get-text-property 0 'cfw:event x)
+                   when
+                   (or
+                    (not calfw-blocks-deduce-all-day)
+                    (equal (calfw-event-start-date ev) date)
+                    (equal (calfw-event-end-date ev) date))
+                   collect
+                   (list x
+                         (calfw-blocks--get-block-vertical-position
+                          date ev))))
          ;; Group by vertical start, sorting the groups in ascending order
          (groups (cl-sort (seq-group-by 'caadr lines-lst)
                           '< :key 'car))
