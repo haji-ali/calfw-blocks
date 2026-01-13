@@ -217,10 +217,23 @@ return an alist of rendering parameters."
                              (string= (substring content 0 5) begintime))
                         (concat begintime "-" endtime (substring content 5))
                       content))
+            for event = (get-text-property 0 'cfw:event content)
             collect
             (if content
-                (calfw--render-default-content-face title)
+                (calfw-transpose-copy-event-properties title event)
               "")))))
+
+(defun calfw-transpose-copy-event-properties (title event)
+  "[internal] Apply face to TITLE and copy event properties from EVENT.
+Returns TITLE with face applied and all org-related properties preserved."
+  (let ((faced-title (calfw--render-default-content-face title)))
+    (when event
+      (let ((event-title (calfw-event-title event)))
+        (dolist (prop '(org-marker org-link cfw:org-file cfw:org-h-beg cfw:org-loc keymap))
+          (when-let ((val (get-text-property 0 prop event-title)))
+            (put-text-property 0 (length faced-title) prop val faced-title)))
+        (put-text-property 0 (length faced-title) 'cfw:event event faced-title)))
+    faced-title))
 
 (defun calfw-transpose-render-columns (day-columns param)
   "Concatenates each row on the days into a string of a physical line.
