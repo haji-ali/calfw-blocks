@@ -687,6 +687,18 @@ Signal an error if a non-event element is encountered."
                  do (cl-loop
                      with min-block = (* min-hour calfw-blocks-lines-per-hour)
                      with max-block = (* max-hour calfw-blocks-lines-per-hour)
+                     initially
+                     (dolist (period raw-periods)
+                       (let ((p-interval (nth 4 (cadr period))))
+                         (when p-interval
+                           (let* ((p-start-time (car p-interval))
+                                  (p-start-hour (car p-start-time))
+                                  (p-start-min (cadr p-start-time))
+                                  (p-start-block (+ (* p-start-hour calfw-blocks-lines-per-hour)
+                                                    (floor (* p-start-min
+                                                              (/ calfw-blocks-lines-per-hour 60.0))))))
+                             (setq min-block (min min-block p-start-block))
+                             (setq max-block (max max-block p-start-block))))))
                      for evnt in cfw-contents
                      for pos = (if (or
                                     calfw-blocks-variable-blocks
