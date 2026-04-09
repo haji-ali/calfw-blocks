@@ -199,6 +199,13 @@ If non-nil, blocks in shrunk hours will not be expanded. See
   "Face for time column. Also used to identify the column."
   :group 'calfw-blocks)
 
+(defface calfw-blocks-more-block-face
+  `((t
+     (:foreground ,(calfw-make-fg-color "#FFFFFF" "#FFFFFF")
+                  :background ,(calfw-make-bg-color "#FFFFFF" "#FFFFFF"))))
+  "Face for time column. Also used to identify the column."
+  :group 'calfw-blocks)
+
 ;; Block views
 
 (defun calfw-blocks-view-block-nday-week-model (n model)
@@ -620,7 +627,8 @@ Moves forward if NUM is negative."
   "[internal] Put the default content face. If STR has some
 faces, the faces are remained."
   (calfw--render-default-content-face
-   str (or default-face (calfw-blocks--status-face str 'background))))
+   str
+   (or default-face (calfw-blocks--status-face str 'background))))
 
 (defmacro calfw-blocks--filter-contents (model-var &rest body)
   "Collect events from MODEL-VAR for which BODY is non-nil.
@@ -843,10 +851,10 @@ b is the minute."
    'identity
    (mapcar (lambda (p)
              (let* ((content (nth 2 (cadr p)))
-                    (face (calfw--render-get-face-period content 'calfw-periods-face))
+                    (face (calfw--render-get-face-period content
+                                                         'calfw-periods-face))
                     (props (append
                             (list
-                             'keymap calfw-blocks-event-keymap
                              'cfw:period t
                              'cfw:row-count (car p)
                              'face (append
@@ -854,6 +862,8 @@ b is the minute."
                                       calfw-blocks-underline-face)
                                     face)
                              'font-lock-face face)
+                            (when (get-text-property 0 'cfw:event content)
+                              (list 'keymap calfw-blocks-event-keymap))
                             (nth 3 (cadr p))))
                     (interval (nth 4 (cadr p)))
                     (begintime (if interval (calfw-blocks-format-time (car interval))))
@@ -1361,10 +1371,8 @@ events are not displayed is shown."
                        (= (length distributed-intervals) 1))
               (let* ((x-vertical-pos (nth 1 (nth x lines-lst)))
                      (exceeded-indicator (list
-                                          (propertize
-                                           (format "+%dmore" lines-left-out)
-                                           'calfw-blocks-exceeded-indicator t
-                                           'cfw:date date)
+                                          (calfw-blocks--more-string
+                                           date lines-left-out)
                                           (list (nth 0 x-vertical-pos)
                                                 (max 4 (nth 1 x-vertical-pos)))
                                           (pop distributed-intervals))))
@@ -1663,9 +1671,9 @@ Add HELP-TEXT in case the string is truncated."
 (defun calfw-blocks--status-face (text &optional background)
   (let* ((event (get-text-property 0 'cfw:event text)))
     (when event
-    (cl-case (calfw-event-status event)
-      (cancelled (if background
-                     'calfw-blocks-cancelled-event-bg-face
+      (cl-case (calfw-event-status event)
+        (cancelled (if background
+                       'calfw-blocks-cancelled-event-bg-face
                      'calfw-blocks-cancelled-event-face))))))
 
 (defun calfw-blocks-split-single-block (date hour-interval block)
@@ -1755,7 +1763,8 @@ is added at the beginning of a block to indicate it is the beginning."
       (push (list (+ (car block-vertical-pos) cnt)
                   (prog1
                       (setq tmp
-                            (propertize
+                            (apply
+                             #'propertize
                              (concat
                               ;;TODO some parts of the string won't inherit
                               ;; the properties of the event might cause
@@ -1766,8 +1775,11 @@ is added at the beginning of a block to indicate it is the beginning."
                               (calfw-blocks-generalized-substring
                                (car block-lines) 0 block-width-adjusted
                                props))
-                             'keymap calfw-blocks-event-keymap
-                             'calfw-blocks-horizontal-pos block-horizontal-pos))
+                             (append
+                              (when (memq 'cfw:event props)
+                                (list 'keymap calfw-blocks-event-keymap))
+                              (list 'calfw-blocks-horizontal-pos
+                                    block-horizontal-pos))))
                     ;; (add-face-text-property 0 (length tmp)
                     ;;                         (calfw--render-get-face-content
                     ;;                          block-string
@@ -1897,6 +1909,23 @@ event appears and the cfw:event structure."
           (setq evs (append evs (list (cons cur-pt ev)))))))
     evs))
 
+(defun calfw-blocks--more-string (date rem)
+  "Return more string to display when too many events are in a cell."
+  (let ((view-day (lambda ()
+                    (interactive)
+                    (when (calfw-cp-get-component)
+                      (calfw-cp-set-view (calfw-cp-get-component) 'block-day)
+                      (calfw-navi-goto-date date)))))
+    (propertize
+     (format "+%dmore" rem)
+     'calfw-blocks-exceeded-indicator t
+     'cfw:date date
+     'keymap
+     (let ((keymap (make-sparse-keymap)))
+       (define-key keymap [13] view-day)
+       (define-key keymap [double-mouse-1] view-day)
+       keymap)
+     'face 'calfw-blocks-more-block-face)))
 
 (defun calfw-blocks--get-overlapping-block-positions (date lines cell-width)
   "Return LINES with assigned vertical and horizontal positions.
@@ -2013,10 +2042,7 @@ events are not displayed is shown."
                      ;; replace the one before the current.
                      (let* ((x-vertical-pos (nth 1 l))
                             (exceeded-indicator
-                             (list (propertize
-                                    (format "+%dmore" rem)
-                                    'calfw-blocks-exceeded-indicator t
-                                    'cfw:date date)
+                             (list (calfw-blocks--more-string date rem)
                                    (list (nth 0 x-vertical-pos)
                                          (max 4 (nth 1 x-vertical-pos)))
                                    (butlast int))))
@@ -2084,6 +2110,13 @@ events are not displayed is shown."
                                     (- prev-start start)))
               padded-line)
         (setq prev-start start)))))
+
+(defun calfw-blocks-change-view-command (view)
+  "Return command to change the view of the current component to VIEW."
+  (lambda ()
+    (interactive)
+    (when (calfw-cp-get-component)
+      (calfw-cp-set-view (calfw-cp-get-component) view))))
 
 (define-minor-mode calfw-blocks-overlapping-mode
   "Allow blocks to overlap in calfw-blocks."
