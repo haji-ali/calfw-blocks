@@ -1360,10 +1360,14 @@ events are not displayed is shown."
             (when (and exceeded-cell-width
                        (= (length distributed-intervals) 1))
               (let* ((x-vertical-pos (nth 1 (nth x lines-lst)))
-                     (exceeded-indicator (list (propertize (format "+%dmore" lines-left-out) 'calfw-blocks-exceeded-indicator t)
-                                               (list (nth 0 x-vertical-pos)
-                                                     (max 4 (nth 1 x-vertical-pos)))
-                                               (pop distributed-intervals))))
+                     (exceeded-indicator (list
+                                          (propertize
+                                           (format "+%dmore" lines-left-out)
+                                           'calfw-blocks-exceeded-indicator t
+                                           'cfw:date date)
+                                          (list (nth 0 x-vertical-pos)
+                                                (max 4 (nth 1 x-vertical-pos)))
+                                          (pop distributed-intervals))))
                 (push (cons -1 exceeded-indicator) new-lines-lst)))
             (if (= 0 (length distributed-intervals))
                 (push x added-indices)
@@ -1681,8 +1685,12 @@ An overline is added to the first line of an event block. A character
 is added at the beginning of a block to indicate it is the beginning."
   (let* ((block-string (car block))
          (event (get-text-property 0 'cfw:event block-string))
-         (start-date (calfw-event-start-date event))
-         (end-date (calfw-event-end-date event))
+         (start-date (if event
+                         (calfw-event-start-date event)
+                       (get-text-property 0 'cfw:date block-string)))
+         (end-date (if event
+                       (calfw-event-end-date event)
+                     start-date))
          (block-vertical-pos (cadr block))
          (block-horizontal-pos (caddr block))
          (block-width (- (cadr block-horizontal-pos) (car block-horizontal-pos)))
@@ -2007,7 +2015,8 @@ events are not displayed is shown."
                             (exceeded-indicator
                              (list (propertize
                                     (format "+%dmore" rem)
-                                    'calfw-blocks-exceeded-indicator t)
+                                    'calfw-blocks-exceeded-indicator t
+                                    'cfw:date date)
                                    (list (nth 0 x-vertical-pos)
                                          (max 4 (nth 1 x-vertical-pos)))
                                    (butlast int))))
