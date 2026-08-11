@@ -126,10 +126,7 @@ return an alist of rendering parameters."
      (calfw--rt
       (calfw-render-title-period begin-date end-date)
       'calfw-title-face)
-     EOL (calfw-blocks-render-toolbar total-width 'week
-                             (calfw-blocks-navi-previous-nday-week-command n)
-                             (calfw-blocks-navi-next-nday-week-command n))
-     EOL)
+     EOL (calfw--render-toolbar total-width (calfw-component-view component)) EOL)
     (insert cline)
     ;; contents
     (calfw-transpose-render-calendar-cells-weeks
@@ -217,9 +214,10 @@ return an alist of rendering parameters."
                              (string= (substring content 0 5) begintime))
                         (concat begintime "-" endtime (substring content 5))
                       content))
+            for formatted-content = (apply #'propertize title (text-properties-at 0 content))
             collect
             (if content
-                (calfw--render-default-content-face title)
+                (calfw--render-default-content-face formatted-content)
               "")))))
 
 (defun calfw-transpose-render-columns (day-columns param)
