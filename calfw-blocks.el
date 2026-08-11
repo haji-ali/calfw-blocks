@@ -137,19 +137,30 @@ If non-nil, blocks in shrunk hours will not be expanded. See
   :group 'calfw-blocks
   :type 'boolean)
 
-(defvar calfw-blocks-event-start (char-to-string calfw-fchar-vertical-line)
-  "String to add at beginning of event, if not on cell start.")
+(defcustom calfw-blocks-event-start (char-to-string calfw-fchar-vertical-line)
+  "String to add at beginning of event, if not on cell start."
+  :group 'calfw-blocks
+  :type 'string)
 
-(defvar calfw-blocks-period-left-cont "<"
-  "String to add at start of period which continue left.")
+(defcustom calfw-blocks-period-left-cont "<"
+  "String to add at start of period which continue left."
+  :group 'calfw-blocks
+  :type 'string)
 
-(defvar calfw-blocks-period-right-cont ">"
-  "String to add  at start of period which continue right.")
+(defcustom calfw-blocks-period-right-cont ">"
+  "String to add  at start of period which continue right."
+  :group 'calfw-blocks
+  :type 'string)
 
-(defvar calfw-blocks-event-keymap nil)
+(defcustom calfw-blocks-event-keymap nil
+  "Keymap used for clickable event blocks, or nil for none."
+  :group 'calfw-blocks
+  :type 'sexp)
 
-(defvar calfw-blocks-earliest-visible-time '(0 0)
-  "Earliest visible time in a day as list (hours minutes).")
+(defcustom calfw-blocks-earliest-visible-time '(0 0)
+  "Earliest visible time in a day as list (hours minutes)."
+  :group 'calfw-blocks
+  :type 'list)
 
 
 (defvar calfw-blocks-posframe-buffer " *cfw-calendar-sticky*")
