@@ -52,7 +52,7 @@
 (defcustom calfw-blocks-initial-visible-time '(8 0)
   "Earliest initial visible time as list (hours minutes)."
   :group 'calfw-blocks
-  :type 'list)
+  :type '(list integer integer))
 
 (defcustom calfw-blocks-lines-per-hour 4
   "Number of lines per hour in a block."
@@ -105,7 +105,7 @@ If \\='cont then render them without splitting into cells."
   "Which hours to never shrink. If nil, shrink all hours.
 Cons of (START . END), inclusive."
   :group 'calfw-blocks
-  :type 'list)
+  :type '(choice (const nil) (cons integer integer)))
 
 (defcustom calfw-blocks-hour-shrink-size 1
   "How many lines to leave when shrinking an hour.
@@ -113,7 +113,7 @@ An integer, up to `calfw-blocks-lines-per-hour'.
 If nil or equal `calfw-blocks-lines-per-hour', do not shrink
 hours."
   :group 'calfw-blocks
-  :type 'list)
+  :type '(choice (const nil) integer))
 
 (defcustom calfw-blocks-variable-blocks t
   "Whether or not to have block with different sizes.
@@ -121,7 +121,7 @@ If non-nil, blocks in shrunk hours will not be expanded. See
 `calfw-blocks-hour-shrink-size' and
 `calfw-blocks-nonshrinking-hours'."
   :group 'calfw-blocks
-  :type 'list)
+  :type 'boolean)
 
 (defcustom calfw-blocks-now-indicator-char
   (propertize "@"
@@ -160,7 +160,7 @@ If non-nil, blocks in shrunk hours will not be expanded. See
 (defcustom calfw-blocks-earliest-visible-time '(0 0)
   "Earliest visible time in a day as list (hours minutes)."
   :group 'calfw-blocks
-  :type 'list)
+  :type '(list integer integer))
 
 
 (defvar calfw-blocks-posframe-buffer " *cfw-calendar-sticky*")
@@ -468,7 +468,7 @@ DIR has to be either 1 or -1 (for previous instead of next)."
            (continue t)
            time-cmp cur-ev point-col)
       ;; First move back to beginning of event
-      (when-let (tmp (calfw-blocks--next-prop cur-pt 'cfw:event dir))
+      (when-let* ((tmp (calfw-blocks--next-prop cur-pt 'cfw:event dir)))
         (setq search-for-periods (get-text-property (car tmp) 'cfw:period)))
 
       (when (and (not search-for-periods)
@@ -822,18 +822,19 @@ period-stack -> ((row-num . period) ... )"
       (cl-loop for (begin end event) in (calfw--k 'periods model)
                do (add-period begin end event t))
       (when calfw-blocks-deduce-all-day
-        (calfw-blocks--filter-contents (model event)
-          (let ((begin (if (equal (calfw-event-start-time event)
-                                  '(0 0))
-                           (calfw-event-start-date event)
-                         (calfw-date-after (calfw-event-start-date event) 1)))
-                (end (if (equal (calfw-event-end-time event)
-                                '(23 59))
-                         (calfw-event-end-date event)
-                       (calfw-date-before (calfw-event-end-date event) 1))))
-            (unless (<= (calfw-days-diff begin end) 0)
-              (add-period begin end event nil))
-            nil))))
+        (ignore
+         (calfw-blocks--filter-contents (model event)
+           (let ((begin (if (equal (calfw-event-start-time event)
+                                   '(0 0))
+                            (calfw-event-start-date event)
+                          (calfw-date-after (calfw-event-start-date event) 1)))
+                 (end (if (equal (calfw-event-end-time event)
+                                 '(23 59))
+                          (calfw-event-end-date event)
+                        (calfw-date-before (calfw-event-end-date event) 1))))
+             (unless (<= (calfw-days-diff begin end) 0)
+               (add-period begin end event nil))
+             nil)))))
     periods-each-days))
 
 (defun calfw-blocks-get-time-interval (event)
@@ -2071,7 +2072,7 @@ events are not displayed is shown."
                                           (w (- e s)))
                                      (list s (+ s (/ w rem)))))))
                         new-lines-lst)))
-                   (when-let ((intersector (and int (nth 2 int))))
+                   (when-let* ((intersector (and int (nth 2 int))))
                      ;; Update the text height of the event that intersects
                      ;; this interval
                      (let* ((int-start (caadr intersector))
@@ -2141,7 +2142,7 @@ events are not displayed is shown."
     (if calfw-blocks-overlapping-mode
         (advice-add (car ad) :override (cdr ad))
       (advice-remove (car ad) (cdr ad))))
-  (when-let (buf (get-buffer calfw-calendar-buffer-name))
+  (when-let* ((buf (get-buffer calfw-calendar-buffer-name)))
     (with-current-buffer buf
       (calfw-refresh-calendar-buffer nil))))
 
