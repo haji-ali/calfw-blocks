@@ -1433,7 +1433,10 @@ events are not displayed is shown."
         '(23 59))))))
 
 (defun calfw-blocks--get-block-vertical-position (date event)
-  "[inclusive, exclusive)"
+  "Return the line interval \\=(START END) of EVENT on DATE.
+[inclusive, exclusive).  END is always at least one line past
+START, so that events too short to span a grid line still get a
+block instead of being dropped by the renderer."
   (let* ((float-interval (calfw-blocks--get-float-time-interval date event))
          (start-time (calfw-blocks--time-pair-to-float
                       calfw-blocks-earliest-visible-time))
@@ -1441,11 +1444,14 @@ events are not displayed is shown."
          (interval-start (car float-interval))
          (interval-end (if (= interval-start (cadr float-interval))
                            (+ calfw-blocks-default-event-length interval-start)
-                         (cadr float-interval))))
-    (list (calfw-blocks-round-start-time (* calfw-blocks-lines-per-hour
-                                            (- interval-start start-time)))
-          (calfw-blocks-round-end-time (* calfw-blocks-lines-per-hour
-                                          (- interval-end start-time))))))
+                         (cadr float-interval)))
+         (start (calfw-blocks-round-start-time
+                 (* calfw-blocks-lines-per-hour
+                    (- interval-start start-time))))
+         (end (calfw-blocks-round-end-time
+               (* calfw-blocks-lines-per-hour
+                  (- interval-end start-time)))))
+    (list start (max (1+ start) end))))
 
 (defun calfw-blocks--current-time-vertical-position ()
   "Returns vertical position of current time, starting from 0."
